@@ -351,18 +351,29 @@ fn agregado_horario_cuadra() {
     let stats = scan_all(&mut conn, &collectors, &|_, _| {}, fixed_now()).unwrap();
     assert_eq!(stats.new_events, 6);
 
-    let event_sums: (i64, i64, i64, i64, i64) = conn
+    let event_sums: (i64, i64, i64, i64, i64, f64) = conn
         .query_row(
-            "SELECT COUNT(*), SUM(input), SUM(cache_write), SUM(cache_read), SUM(output) FROM usage_event",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-        )
-        .unwrap();
-    let agg_sums: (i64, i64, i64, i64, i64, i64) = conn
-        .query_row(
-            "SELECT SUM(turns), SUM(input), SUM(cache_write), SUM(cache_read), SUM(output), SUM(unpriced) FROM hourly_agg",
+            "SELECT COUNT(*), SUM(input), SUM(cache_write), SUM(cache_read), SUM(output), COALESCE(SUM(cost_usd), 0.0) FROM usage_event",
             [],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
+        )
+        .unwrap();
+    let agg_sums: (i64, i64, i64, i64, i64, i64, f64, f64) = conn
+        .query_row(
+            "SELECT SUM(turns), SUM(input), SUM(cache_write), SUM(cache_read), SUM(output), SUM(unpriced), SUM(cost_real), SUM(cost_equiv) FROM hourly_agg",
+            [],
+            |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                    r.get(7)?,
+                ))
+            },
         )
         .unwrap();
 
@@ -371,7 +382,10 @@ fn agregado_horario_cuadra() {
     assert_eq!(event_sums.2, agg_sums.2);
     assert_eq!(event_sums.3, agg_sums.3);
     assert_eq!(event_sums.4, agg_sums.4);
-    assert_eq!(agg_sums.5, event_sums.0);
+    assert_eq!(agg_sums.5, 0);
+    assert!((agg_sums.6).abs() < 1e-12);
+    assert!(event_sums.5 > 0.0);
+    assert!((event_sums.5 - agg_sums.7).abs() < 1e-9);
 
     // Comprobar formato de hour_utc
     let hour_sample: String = conn

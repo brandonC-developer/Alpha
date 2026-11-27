@@ -2,7 +2,7 @@ use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::collectors::Collector;
@@ -10,7 +10,7 @@ use crate::collectors::antigravity::AntigravityCollector;
 use crate::collectors::claude_code::ClaudeCodeCollector;
 use crate::error::{CoreError, Result};
 use crate::model::plan_for;
-use crate::time::fmt_utc;
+use crate::time::{fmt_utc, hour_utc_str};
 
 /// Resumen numérico devuelto por las operaciones de ingestión.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -39,7 +39,17 @@ pub trait CostHook {
     fn apply(&self, conn: &Connection, dedup_key: &str) -> Result<()>;
 }
 
-/// Implementación sin efecto mientras no exista el módulo de costes (T6).
+/// Implementación por defecto que aplica el coste calculado desde la tabla de precios.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ApplyCostHook;
+
+impl CostHook for ApplyCostHook {
+    fn apply(&self, conn: &Connection, dedup_key: &str) -> Result<()> {
+        crate::cost::apply_cost(conn, dedup_key)
+    }
+}
+
+/// Implementación sin efecto útil en pruebas que aíslan la ingesta del cálculo de costes.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NoopCostHook;
 
@@ -56,7 +66,7 @@ pub fn ingest_file(
     path: &Path,
     now: DateTime<Utc>,
 ) -> Result<IngestStats> {
-    ingest_file_with_cost(conn, c, path, &NoopCostHook, now)
+    ingest_file_with_cost(conn, c, path, &ApplyCostHook, now)
 }
 
 /// Variante de [`ingest_file`] parametrizada con un [`CostHook`].
@@ -354,13 +364,4 @@ fn accepts_collector_path(collector_id: &str, path: &Path) -> bool {
         "antigravity" => AntigravityCollector::accepts_path(path),
         _ => true,
     }
-}
-
-fn hour_utc_str(ts: DateTime<Utc>) -> String {
-    let truncated = ts
-        .with_minute(0)
-        .and_then(|d| d.with_second(0))
-        .and_then(|d| d.with_nanosecond(0))
-        .unwrap_or(ts);
-    fmt_utc(truncated)
 }

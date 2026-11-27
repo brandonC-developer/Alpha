@@ -25,7 +25,11 @@ pub fn open_memory() -> Result<Connection> {
 }
 
 fn init_connection(conn: Connection) -> Result<Connection> {
-    init_connection_with(conn, seed_plans)
+    init_connection_with(conn, |c| {
+        seed_plans(c)?;
+        crate::pricing::seed_prices(c)?;
+        Ok(())
+    })
 }
 
 fn init_connection_with<F>(mut conn: Connection, seed: F) -> Result<Connection>

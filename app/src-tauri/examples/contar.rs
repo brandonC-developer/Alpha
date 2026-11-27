@@ -83,5 +83,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "TOTAL", "-", total_turns, total_input, total_cache_write, total_cache_read, total_output
     );
 
+    let since_30 = fmt_utc(now - Duration::days(30));
+    let (equiv_30, unpriced_30): (f64, i64) = conn.query_row(
+        "SELECT COALESCE(SUM(CASE WHEN cost_kind = 'api_equivalent' THEN cost_usd ELSE 0.0 END), 0.0),
+                COALESCE(SUM(CASE WHEN cost_kind = 'unknown' THEN 1 ELSE 0 END), 0)
+         FROM usage_event
+         WHERE ts_utc >= ?1",
+        [&since_30],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    println!(
+        "Coste equivalente últimos 30 días (desde {since_30}): ${equiv_30:.4} USD (sin precio: {unpriced_30})"
+    );
+
     Ok(())
 }

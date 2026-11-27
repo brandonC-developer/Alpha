@@ -1,0 +1,211 @@
+[
+  {
+    "provider": "anthropic",
+    "modelPattern": "claude-opus-5-5*",
+    "validFrom": "2026-01-01",
+    "input": 4.0,
+    "output": 20.0,
+    "cacheWrite": 5.0,
+    "cacheRead": 0.2,
+    "sourceUrl": "https://platform.claude.com/docs/en/about-claude/pricing",
+    "approximate": false
+  },
+  {
+    "provider": "anthropic",
+    "modelPattern": "claude-sonnet-5-5*",
+    "validFrom": "2026-01-01",
+    "input": 2.0,
+    "output": 10.0,
+    "cacheWrite": 2.5,
+    "cacheRead": 0.1,
+    "sourceUrl": "https://developersdigest.org",
+    "approximate": true
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-4-hydrogen*",
+    "validFrom": "2026-01-01",
+    "input": 1.5,
+    "output": 7.5,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.075,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": false
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-4-neon*",
+    "validFrom": "2026-01-01",
+    "input": 3.0,
+    "output": 15.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.15,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": false
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-4-carbon*",
+    "validFrom": "2026-01-01",
+    "input": 2.0,
+    "output": 10.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.1,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": false
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-4-carbon*",
+    "validFrom": "2026-12-01",
+    "input": 4.0,
+    "output": 20.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.2,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": false
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-4-argon*",
+    "validFrom": "2026-01-01",
+    "input": 2.0,
+    "output": 10.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.1,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": false
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-4-argon*",
+    "validFrom": "2026-12-01",
+    "input": 4.0,
+    "output": 20.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.2,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": false
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-3.8-flash*",
+    "validFrom": "2026-01-01",
+    "input": 0.75,
+    "output": 3.75,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.075,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": false
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-3.8-flash*",
+    "validFrom": "2027-01-01",
+    "input": 1.5,
+    "output": 7.5,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.15,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": false
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-pro-orchestrator-neon",
+    "validFrom": "2026-01-01",
+    "input": 3.0,
+    "output": 15.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.15,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": true
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-pro-orchestrator",
+    "validFrom": "2026-01-01",
+    "input": 2.0,
+    "output": 10.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.1,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": true
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-pro-orchestrator",
+    "validFrom": "2026-12-01",
+    "input": 4.0,
+    "output": 20.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.2,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": true
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-pro-orchestrator-argon",
+    "validFrom": "2026-01-01",
+    "input": 2.0,
+    "output": 10.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.1,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": true
+  },
+  {
+    "provider": "google",
+    "modelPattern": "gemini-pro-orchestrator-argon",
+    "validFrom": "2026-12-01",
+    "input": 4.0,
+    "output": 20.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.2,
+    "sourceUrl": "https://aistudio.google.com/docs/pricing",
+    "approximate": true
+  },
+  {
+    "provider": "deepseek",
+    "modelPattern": "deepseek-flash*",
+    "validFrom": "2026-08-16",
+    "input": 0.15,
+    "output": 0.6,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.003,
+    "sourceUrl": "https://api-docs.deepseek.com/quick_start/pricing",
+    "approximate": true
+  },
+  {
+    "provider": "deepseek",
+    "modelPattern": "deepseek-v4-flash*",
+    "validFrom": "2026-08-16",
+    "input": 0.15,
+    "output": 0.6,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.003,
+    "sourceUrl": "https://api-docs.deepseek.com/quick_start/pricing",
+    "approximate": true
+  },
+  {
+    "provider": "other",
+    "modelPattern": "*-free",
+    "validFrom": "2026-01-01",
+    "input": 0.0,
+    "output": 0.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.0,
+    "sourceUrl": "https://opencode.ai/docs/zen",
+    "approximate": false
+  },
+  {
+    "provider": "other",
+    "modelPattern": "big-pickle",
+    "validFrom": "2026-01-01",
+    "input": 0.0,
+    "output": 0.0,
+    "cacheWrite": 0.0,
+    "cacheRead": 0.0,
+    "sourceUrl": "https://opencode.ai/docs/zen",
+    "approximate": false
+  }
+]
