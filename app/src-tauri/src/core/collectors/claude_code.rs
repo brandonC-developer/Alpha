@@ -1,12 +1,9 @@
-use std::collections::HashSet;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
-use crate::collectors::{Collector, LineError, ParseOutcome};
+use crate::collectors::{Collector, LineFailure, ParseOutcome, parse_jsonl_file};
 use crate::error::Result;
 use crate::model::{Tool, UsageEvent, provider_for};
 
@@ -22,12 +19,17 @@ impl ClaudeCodeCollector {
         Self { root }
     }
 
-    /// Devuelve la carpeta por defecto de Claude Code (`%USERPROFILE%\.claude\projects`).
+    /// Devuelve la carpeta por defecto de Claude Code (`%USERPROFILE%\.claude\projects`),
+    /// o una ruta vacía si no hay directorio de usuario.
     pub fn default_root() -> PathBuf {
-        dirs::home_dir()
-            .unwrap_or_default()
-            .join(".claude")
-            .join("projects")
+        Self::default_root_in(dirs::home_dir())
+    }
+
+    fn default_root_in(home: Option<PathBuf>) -> PathBuf {
+        match home {
+            Some(home) => home.join(".claude").join("projects"),
+            None => PathBuf::new(),
+        }
     }
 
     /// Indica si la ruta corresponde a un archivo soportado (`*.jsonl`).
@@ -50,94 +52,15 @@ impl Collector for ClaudeCodeCollector {
     }
 
     fn roots(&self) -> Vec<PathBuf> {
-        vec![self.root.clone()]
+        if self.root.as_os_str().is_empty() {
+            Vec::new()
+        } else {
+            vec![self.root.clone()]
+        }
     }
 
     fn parse_file(&self, path: &Path, from_offset: u64) -> Result<ParseOutcome> {
-        let file = File::open(path)?;
-        let file_len = file.metadata()?.len();
-        if from_offset >= file_len {
-            return Ok(ParseOutcome {
-                events: Vec::new(),
-                new_offset: file_len,
-                errors: Vec::new(),
-            });
-        }
-
-        let mut reader = BufReader::new(file);
-        let mut line_num: u64 = 1;
-        if from_offset > 0 {
-            line_num += count_newlines_up_to(&mut reader, from_offset)?;
-        }
-
-        let mut offset = from_offset;
-        let mut events = Vec::new();
-        let mut errors = Vec::new();
-        let mut seen = HashSet::new();
-        let mut buf = Vec::new();
-
-        loop {
-            buf.clear();
-            let bytes_read = reader.read_until(b'\n', &mut buf)?;
-            if bytes_read == 0 {
-                break;
-            }
-            // Una línea sin '\n' final puede estar escribiéndose aún: no avanzamos el offset.
-            if !buf.ends_with(b"\n") {
-                break;
-            }
-
-            offset += bytes_read as u64;
-            let current_line = line_num;
-            line_num += 1;
-
-            let text = match std::str::from_utf8(&buf) {
-                Ok(s) => s.trim().trim_start_matches('\u{FEFF}'),
-                Err(err) => {
-                    errors.push(LineError {
-                        line: current_line,
-                        reason: format!("UTF-8 inválido: {err}"),
-                    });
-                    continue;
-                }
-            };
-
-            if text.is_empty() {
-                continue;
-            }
-
-            let raw: RawLine = match serde_json::from_str(text) {
-                Ok(parsed) => parsed,
-                Err(err) => {
-                    errors.push(LineError {
-                        line: current_line,
-                        reason: err.to_string(),
-                    });
-                    continue;
-                }
-            };
-
-            match normalize_line(raw) {
-                Ok(Some(event)) => {
-                    if seen.insert(event.dedup_key.clone()) {
-                        events.push(event);
-                    }
-                }
-                Ok(None) => {}
-                Err(reason) => {
-                    errors.push(LineError {
-                        line: current_line,
-                        reason,
-                    });
-                }
-            }
-        }
-
-        Ok(ParseOutcome {
-            events,
-            new_offset: offset,
-            errors,
-        })
+        parse_jsonl_file(path, from_offset, normalize_line)
     }
 }
 
@@ -175,7 +98,7 @@ struct RawOutputDetails {
     thinking_tokens: Option<u64>,
 }
 
-fn normalize_line(raw: RawLine) -> std::result::Result<Option<UsageEvent>, String> {
+fn normalize_line(raw: RawLine) -> std::result::Result<Option<UsageEvent>, LineFailure> {
     if raw.line_type.as_deref() != Some("assistant") {
         return Ok(None);
     }
@@ -203,7 +126,7 @@ fn normalize_line(raw: RawLine) -> std::result::Result<Option<UsageEvent>, Strin
     };
     let ts_utc = DateTime::parse_from_rfc3339(ts_str)
         .map(|dt| dt.with_timezone(&Utc))
-        .map_err(|err| format!("marca temporal inválida: {err}"))?;
+        .map_err(|_| LineFailure::InvalidDate)?;
 
     let req = raw
         .request_id
@@ -246,16 +169,14 @@ fn project_from_cwd(cwd: &str) -> Option<String> {
     Some(last.to_string())
 }
 
-fn count_newlines_up_to<R: Read>(reader: &mut R, limit: u64) -> Result<u64> {
-    let mut limited = reader.take(limit);
-    let mut buf = [0u8; 8192];
-    let mut count = 0u64;
-    loop {
-        let n = limited.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        count += buf[..n].iter().filter(|&&b| b == b'\n').count() as u64;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sin_directorio_de_usuario_devuelve_raices_vacias() {
+        let root = ClaudeCodeCollector::default_root_in(None);
+        assert!(root.as_os_str().is_empty());
+        assert!(ClaudeCodeCollector::new(root).roots().is_empty());
     }
-    Ok(count)
 }

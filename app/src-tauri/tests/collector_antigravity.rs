@@ -333,3 +333,64 @@ fn linea_incompleta_y_corrupta_y_offset() {
     assert_eq!(outcome2.events[0].dedup_key, format!("ag:{uuid}:3"));
     assert_eq!(outcome2.events[0].input, 20);
 }
+
+#[test]
+fn tipo_inesperado_se_salta_y_errores_sin_contenido() {
+    let tmp = tempfile::tempdir().unwrap();
+    let uuid = "44444444-5555-6666-7777-888888888888";
+    let logs = tmp.path().join(uuid).join(".system_generated").join("logs");
+    fs::create_dir_all(&logs).unwrap();
+    let path = logs.join("transcript.jsonl");
+
+    let mut f = fs::File::create(&path).unwrap();
+    // Línea 1: JSON válido con campo de tipo inesperado y secreto -> se salta sin error
+    writeln!(
+        f,
+        r#"{{"step_index":"secreto-del-prompt","source":"MODEL","model":"gemini-4-neon-xhigh","input_tokens":10}}"#
+    )
+    .unwrap();
+    // Línea 2: JSON roto con secreto -> razón fija sin secreto
+    writeln!(
+        f,
+        r#"{{"step_index":2,"thinking":"secreto-del-prompt", roto"#
+    )
+    .unwrap();
+    // Línea 3: fecha inválida con secreto -> razón fija sin secreto
+    writeln!(
+        f,
+        r#"{{"step_index":3,"source":"MODEL","created_at":"secreto-del-prompt","model":"gemini-4-neon-xhigh","input_tokens":10,"output_tokens":5}}"#
+    )
+    .unwrap();
+    // Línea 4: UTF-8 inválido
+    f.write_all(b"{\"step_index\":4\xff}\n").unwrap();
+    drop(f);
+
+    let collector = AntigravityCollector {
+        roots: vec![tmp.path().to_path_buf()],
+    };
+    let outcome = collector.parse_file(&path, 0).unwrap();
+    assert!(outcome.events.is_empty());
+    assert_eq!(outcome.errors.len(), 3);
+    assert_eq!(outcome.errors[0].line, 2);
+    assert!(outcome.errors[0].reason.contains("json_invalido"));
+    assert_eq!(outcome.errors[1].line, 3);
+    assert!(outcome.errors[1].reason.contains("fecha_invalida"));
+    assert_eq!(outcome.errors[2].line, 4);
+    assert!(outcome.errors[2].reason.contains("utf8_invalido"));
+
+    for err in &outcome.errors {
+        assert!(!err.reason.contains("secreto-del-prompt"));
+    }
+}
+
+#[test]
+fn from_offset_mayor_que_tamano_relee_desde_cero() {
+    let collector = collector_for_fixtures();
+    let path = fixture_transcript();
+    let file_len = fs::metadata(&path).unwrap().len();
+
+    let outcome = collector.parse_file(&path, file_len + 64).unwrap();
+    assert!(outcome.errors.is_empty());
+    assert_eq!(outcome.events.len(), 3);
+    assert_eq!(outcome.new_offset, file_len);
+}

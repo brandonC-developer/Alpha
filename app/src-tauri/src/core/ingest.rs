@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Timelike, Utc};
@@ -7,7 +8,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::collectors::Collector;
 use crate::collectors::antigravity::AntigravityCollector;
 use crate::collectors::claude_code::ClaudeCodeCollector;
-use crate::error::Result;
+use crate::error::{CoreError, Result};
 use crate::model::plan_for;
 use crate::time::fmt_utc;
 
@@ -16,6 +17,7 @@ use crate::time::fmt_utc;
 pub struct IngestStats {
     pub files_seen: u64,
     pub files_read: u64,
+    pub files_failed: u64,
     pub new_events: u64,
     pub duplicates: u64,
     pub line_errors: u64,
@@ -25,6 +27,7 @@ impl IngestStats {
     fn accumulate(&mut self, other: Self) {
         self.files_seen += other.files_seen;
         self.files_read += other.files_read;
+        self.files_failed += other.files_failed;
         self.new_events += other.new_events;
         self.duplicates += other.duplicates;
         self.line_errors += other.line_errors;
@@ -47,8 +50,13 @@ impl CostHook for NoopCostHook {
 }
 
 /// Ingiere de forma incremental e idempotente un archivo de registro usando `c`.
-pub fn ingest_file(conn: &mut Connection, c: &dyn Collector, path: &Path) -> Result<IngestStats> {
-    ingest_file_with_cost(conn, c, path, &NoopCostHook)
+pub fn ingest_file(
+    conn: &mut Connection,
+    c: &dyn Collector,
+    path: &Path,
+    now: DateTime<Utc>,
+) -> Result<IngestStats> {
+    ingest_file_with_cost(conn, c, path, &NoopCostHook, now)
 }
 
 /// Variante de [`ingest_file`] parametrizada con un [`CostHook`].
@@ -57,6 +65,7 @@ pub fn ingest_file_with_cost(
     c: &dyn Collector,
     path: &Path,
     cost_hook: &dyn CostHook,
+    now: DateTime<Utc>,
 ) -> Result<IngestStats> {
     let meta = fs::metadata(path)?;
     let size = meta.len();
@@ -74,17 +83,22 @@ pub fn ingest_file_with_cost(
 
     let (from_offset, rotated) = match existing {
         Some((saved_size, saved_offset)) => {
-            if size < saved_size.max(0) as u64 {
+            let saved_size = saved_size.max(0) as u64;
+            let saved_offset = saved_offset.max(0) as u64;
+            if size < saved_size
+                || saved_offset > size
+                || (saved_offset > 0 && !byte_before_offset_is_newline(path, saved_offset)?)
+            {
                 (0, true)
             } else {
-                (saved_offset.max(0) as u64, false)
+                (saved_offset, false)
             }
         }
         None => (0, false),
     };
 
     let outcome = c.parse_file(path, from_offset)?;
-    let now_str = fmt_utc(Utc::now());
+    let now_str = fmt_utc(now);
 
     let tx = conn.transaction()?;
 
@@ -228,6 +242,7 @@ pub fn ingest_file_with_cost(
     Ok(IngestStats {
         files_seen: 1,
         files_read: 1,
+        files_failed: 0,
         new_events,
         duplicates,
         line_errors: outcome.errors.len() as u64,
@@ -239,6 +254,7 @@ pub fn scan_all(
     conn: &mut Connection,
     cs: &[Box<dyn Collector>],
     progress: &dyn Fn(u64, u64),
+    now: DateTime<Utc>,
 ) -> Result<IngestStats> {
     let mut work: Vec<(&dyn Collector, PathBuf)> = Vec::new();
     for collector in cs {
@@ -261,18 +277,39 @@ pub fn scan_all(
 
     let mut stats = IngestStats::default();
     for (idx, (collector, path)) in work.into_iter().enumerate() {
-        if is_unchanged(conn, &path)? {
-            stats.files_seen += 1;
-            progress((idx + 1) as u64, total);
-            continue;
+        match scan_one_file(conn, collector, &path, now) {
+            Ok(Some(file_stats)) => stats.accumulate(file_stats),
+            Ok(None) => stats.files_seen += 1,
+            Err(CoreError::Io(_)) | Err(CoreError::Parse { .. }) => {
+                stats.files_seen += 1;
+                stats.files_failed += 1;
+            }
+            Err(err) => return Err(err),
         }
-
-        let file_stats = ingest_file(conn, collector, &path)?;
-        stats.accumulate(file_stats);
         progress((idx + 1) as u64, total);
     }
 
     Ok(stats)
+}
+
+fn scan_one_file(
+    conn: &mut Connection,
+    collector: &dyn Collector,
+    path: &Path,
+    now: DateTime<Utc>,
+) -> Result<Option<IngestStats>> {
+    if is_unchanged(conn, path)? {
+        return Ok(None);
+    }
+    ingest_file(conn, collector, path, now).map(Some)
+}
+
+fn byte_before_offset_is_newline(path: &Path, offset: u64) -> Result<bool> {
+    let mut file = fs::File::open(path)?;
+    file.seek(SeekFrom::Start(offset - 1))?;
+    let mut byte = [0u8; 1];
+    let n = file.read(&mut byte)?;
+    Ok(n == 1 && byte[0] == b'\n')
 }
 
 fn is_unchanged(conn: &Connection, path: &Path) -> Result<bool> {

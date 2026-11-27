@@ -16,12 +16,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(AntigravityCollector::default()),
     ];
 
-    let stats = scan_all(&mut conn, &collectors, &|_, _| {})?;
-    let since = fmt_utc(Utc::now() - Duration::days(7));
+    let now = Utc::now();
+    let stats = scan_all(&mut conn, &collectors, &|_, _| {}, now)?;
+    let since = fmt_utc(now - Duration::days(7));
 
     println!(
-        "Ingesta: archivos_vistos={} archivos_leidos={} eventos_nuevos={} duplicados={} errores_linea={}",
-        stats.files_seen, stats.files_read, stats.new_events, stats.duplicates, stats.line_errors
+        "Ingesta: archivos_vistos={} archivos_leidos={} archivos_fallidos={} eventos_nuevos={} duplicados={} errores_linea={}",
+        stats.files_seen,
+        stats.files_read,
+        stats.files_failed,
+        stats.new_events,
+        stats.duplicates,
+        stats.line_errors
     );
     println!("Totales de los últimos 7 días (desde {since}):");
     println!(
