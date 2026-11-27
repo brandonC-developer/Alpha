@@ -141,7 +141,9 @@ Formato:
 | Patrón | Entrada | Salida | Escritura caché | Lectura caché | Aproximado | Fuente |
 | --- | --- | --- | --- | --- | --- | --- |
 | `claude-opus-5-5*` | 4,00 | 20,00 | 5,00 | 0,20 | no | Página de precios de Anthropic y varias fuentes coincidentes |
-| `claude-sonnet-5-5*` | 2,00 | 10,00 | 2,50 | 0,10 | **sí** (una sola fuente; caché = 1,25× y 0,05× de la entrada, como Opus) | DevelopersDigest |
+| `claude-sonnet-5-5*` | 2,00 | 10,00 | 2,50 | 0,10 | no | Precios oficiales de la API de Anthropic (referencia claude-api, cacheada el 03/11/2026); escritura 5 min = 1,25× la entrada |
+| `claude-haiku-5-5*` | 0,10 | 0,50 | 0,125 | 0,01 | **sí**: es el precio para prompts de hasta 100K tokens (por encima, 0,50 / 2,50); la caché se calcula con 1,25× y 0,1× | Precios oficiales de la API de Anthropic (referencia claude-api, cacheada el 03/11/2026) |
+| `claude-fable-5-2*` | 8,00 | 40,00 | 10,00 | 0,20 | no | Precios oficiales de la API de Anthropic (referencia claude-api, cacheada el 03/11/2026); escritura 5 min = 1,25× |
 | `gemini-4-hydrogen*` (incluye `-tiered-*`) desde 2026-01-01 | 1,50 | 7,50 | 0 | 0,075 | no | Página oficial de precios de la API de Gemini (aistudio.google.com/docs/pricing), leída el 27/11/2026; la salida incluye el razonamiento y solo hay caché implícita |
 | `gemini-4-neon*` desde 2026-01-01 | 3,00 | 15,00 | 0 | 0,15 | no | Ídem |
 | `gemini-4-carbon*` y `gemini-4-argon*` desde 2026-01-01 | 2,00 | 10,00 | 0 | 0,10 | no | Ídem; vigente hasta el 30/11/2026 |
@@ -156,6 +158,8 @@ Formato:
 ### 3.2 Pendiente antes de la fase 3 (lo hace Claude)
 
 - **Gemini 4: hecho el 27/11/2026.** Google ya publica precios de API (§3.1). En `pricing.json` cada modelo con dos precios lleva dos filas con `validFrom`, y el coste usa el vigente en la fecha de cada llamada. Como `globset` admite un patrón por fila, «`gemini-4-carbon*` y `gemini-4-argon*`» son filas separadas con el mismo precio.
+- **Fecha de un precio:** `validFrom` se compara con la fecha **UTC** del evento. Un cambio de precio «desde el 1 de diciembre» se aplica a partir de las 00:00 UTC (las 18:00 del 30/11 en UTC−6).
+- **Escritura de caché de 1 h (pendiente, menor):** Claude Code escribe gran parte de su caché con TTL de 1 h (ccusage: unos 1,23 M de 1,51 M en un día), que Anthropic cobra a 2× la entrada en vez de 1,25×. La app usa el precio de 5 min, así que el equivalente de Claude Code sale algo bajo. Para corregirlo, el colector de Claude Code tendría que leer `cache_creation.ephemeral_1h_input_tokens` aparte. Se decide en la fase 7.
 - **Ids sin precio:** `gemini-flash-worker-agy` sale como «sin precio» (`unknown`).
 - **Cuota de Google AI Pro: 20 $/mes** (confirmada por el usuario el 27/11/2026). Se siembra en `google-ai-pro`. Es una sola cuota mensual para los planes `google-ai-pro` y `google-ai-pro-claude`; el rendimiento se calcula sumando los dos.
 - **DeepSeek, saldo:** el saldo recargado no caduca; solo caduca el saldo regalado (`granted_balance`), según la FAQ oficial. DeepSeek no publica una recarga mínima oficial: las fuentes de terceros hablan de 2 $ a 5 $. El usuario recargó 5 $ (27/11/2026).

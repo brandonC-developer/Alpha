@@ -224,7 +224,13 @@ CREATE TABLE setting (
 - **Concurrencia:** para cada hora, se suman los bits de `minute_mask` de todas las sesiones y se toma el máximo por minuto.
 - **Tiempo activo:** la suma de `active_secs`, más, entre dos filas consecutivas de la misma sesión, `min(first_ts(siguiente) − last_ts(anterior), 300 s)`.
 
-Se mantiene en la ingesta. Tras cada archivo, cada pareja (sesión, hora) tocada se **recalcula entera** desde `usage_event` con `ix_event_session`, así que un evento fuera de orden o repetido no la descuadra. Los filtros `tool`, `provider` y `project` funcionan igual que en `hourly_agg`.
+Se mantiene en la ingesta. Tras cada archivo, cada pareja (sesión, hora) tocada se **recalcula entera** desde `usage_event` con `ix_event_session`, así que un evento fuera de orden o repetido no la descuadra. **Filas «todas».** Una sesión puede mezclar proveedores (Gemini y Claude en una conversación de Antigravity) o proyectos. Por eso, para cada pareja (sesión, hora), la ingesta guarda cuatro variantes:
+- `(provider, project)` reales;
+- `(provider, '*')`;
+- `('*', project)`;
+- `('*', '*')`.
+
+Cada variante calcula `active_secs` y `minute_mask` sobre los eventos que reúne. La consulta lee solo la variante que corresponde al filtro: sin filtro de proveedor ni de proyecto, la `('*', '*')`; con solo proveedor, la `(provider, '*')`; etc. Así el tiempo activo y la concurrencia son exactos con cualquier filtro, y nunca se suman dos filas de la misma sesión y hora. El filtro `tool` se aplica en cualquier variante, porque una sesión pertenece a una sola herramienta. Entre horas consecutivas, el hueco se mide desde el `last_ts` máximo de las filas anteriores de la sesión.
 
 ## 4. Hilos y concurrencia
 

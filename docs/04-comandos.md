@@ -11,9 +11,10 @@ export type PlanId = 'claude-pro' | 'google-ai-pro' | 'google-ai-pro-claude' | '
 export type CostKind = 'real' | 'api_equivalent' | 'unknown';
 export type WindowName = '5h' | 'weekly';
 
+// Rangos: la interfaz envía siempre inicios de día local (7, 30 o 90 días, o Todo) y `to` = ahora. Como las tablas resumen son por hora UTC, el núcleo trabaja con horas completas (fase 3, revisión de Carbon). Con zonas de desfase no entero (p. ej. +05:30) el borde puede moverse hasta 30 min, una limitación aceptada.
 export interface Filter {
-  from: string;            // ISO 8601 UTC
-  to: string;              // ISO 8601 UTC, exclusivo
+  from: string;            // ISO 8601 UTC; el núcleo lo redondea hacia abajo a la hora UTC
+  to: string;              // ISO 8601 UTC, exclusivo; el núcleo lo redondea hacia arriba a la hora UTC
   tool?: Tool;
   provider?: Provider;
   project?: string;
@@ -67,7 +68,7 @@ export interface CostsView {
   byDay: { date: string; provider: Provider; kind: CostKind; usd: number }[];
   byModel: { model: string; kind: CostKind; usd: number; turns: number }[];
   byTool: { tool: Tool; usd: number }[];
-  byProject: { project: string; usd: number; sessions: number; avgPerSession: number }[];
+  byProject: { project: string; usd: number | null; sessions: number; avgPerSession: number | null }[];  // usd y avgPerSession son null si el proyecto no tiene ningún evento con precio; avgPerSession divide solo entre las sesiones con algún evento con precio
   monthProjection: { realUsd: number; apiEquivalentUsd: number };
   deepseekBudget: { budgetUsd: number; spentUsd: number; balanceUsd: number | null } | null;
   unpriced: { model: string; events: number }[];
