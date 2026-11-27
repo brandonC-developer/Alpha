@@ -1,0 +1,4 @@
+/// Versión actual del núcleo `gestor_core`, coincidente con `Cargo.toml`.
+pub fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
