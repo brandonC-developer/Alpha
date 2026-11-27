@@ -1,8 +1,9 @@
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Timelike, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::collectors::Collector;
@@ -146,6 +147,7 @@ pub fn ingest_file_with_cost(
 
     let mut new_events: u64 = 0;
     let mut duplicates: u64 = 0;
+    let mut touched_session_hours: HashSet<(String, String)> = HashSet::new();
 
     {
         let mut insert_event_stmt = tx.prepare(
@@ -226,7 +228,18 @@ pub fn ingest_file_with_cost(
                 cost_equiv,
                 unpriced,
             ])?;
+
+            touched_session_hours.insert((ev.session_id.clone(), hour_str));
         }
+    }
+
+    if !touched_session_hours.is_empty() {
+        refresh_session_hours(
+            &tx,
+            touched_session_hours
+                .iter()
+                .map(|(s, h)| (s.as_str(), h.as_str())),
+        )?;
     }
 
     if !outcome.errors.is_empty() {
@@ -364,4 +377,107 @@ fn accepts_collector_path(collector_id: &str, path: &Path) -> bool {
         "antigravity" => AntigravityCollector::accepts_path(path),
         _ => true,
     }
+}
+
+/// Recalcula en `session_hour` la pareja `(session_id, hour_utc)` desde `usage_event` (vía `ix_event_session`).
+pub fn refresh_session_hour(conn: &Connection, session_id: &str, hour_utc: &str) -> Result<()> {
+    refresh_session_hours(conn, std::iter::once((session_id, hour_utc)))
+}
+
+fn refresh_session_hours<'a, I>(conn: &Connection, pairs: I) -> Result<()>
+where
+    I: IntoIterator<Item = (&'a str, &'a str)>,
+{
+    struct GroupAcc {
+        events: i64,
+        first_ts: String,
+        last_ts: String,
+        last_ep: i64,
+        active_secs: i64,
+        minute_mask: i64,
+    }
+
+    let mut delete_stmt =
+        conn.prepare("DELETE FROM session_hour WHERE session_id = ?1 AND hour_utc = ?2")?;
+    let mut select_stmt = conn.prepare(
+        "SELECT tool, provider, COALESCE(project, ''), ts_utc
+         FROM usage_event
+         WHERE session_id = ?1 AND ts_utc >= ?2 AND ts_utc < ?3
+         ORDER BY ts_utc ASC",
+    )?;
+    let mut insert_stmt = conn.prepare(
+        "INSERT INTO session_hour (
+            session_id, tool, provider, project, hour_utc,
+            events, first_ts, last_ts, active_secs, minute_mask
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+    )?;
+
+    for (session_id, hour_utc) in pairs {
+        let hour_dt = hour_utc
+            .parse::<DateTime<Utc>>()
+            .map_err(|err| CoreError::Parse {
+                file: "session_hour".to_string(),
+                line: 0,
+                reason: format!("hora UTC inválida '{hour_utc}': {err}"),
+            })?;
+        let hour_end = fmt_utc(hour_dt + Duration::hours(1));
+
+        delete_stmt.execute(params![session_id, hour_utc])?;
+
+        let mut groups: BTreeMap<(String, String, String), GroupAcc> = BTreeMap::new();
+        let mut rows = select_stmt.query(params![session_id, hour_utc, &hour_end])?;
+        while let Some(r) = rows.next()? {
+            let tool: String = r.get(0)?;
+            let provider: String = r.get(1)?;
+            let project: String = r.get(2)?;
+            let ts_str: String = r.get(3)?;
+            let ts = ts_str
+                .parse::<DateTime<Utc>>()
+                .map_err(|err| CoreError::Parse {
+                    file: "usage_event".to_string(),
+                    line: 0,
+                    reason: format!("fecha UTC inválida '{ts_str}': {err}"),
+                })?;
+            let ep = ts.timestamp();
+            let bit = 1_i64 << ts.minute();
+
+            let key = (tool, provider, project);
+            if let Some(acc) = groups.get_mut(&key) {
+                acc.events += 1;
+                acc.last_ts = ts_str;
+                acc.active_secs += (ep - acc.last_ep).clamp(0, 300);
+                acc.last_ep = ep;
+                acc.minute_mask |= bit;
+            } else {
+                groups.insert(
+                    key,
+                    GroupAcc {
+                        events: 1,
+                        first_ts: ts_str.clone(),
+                        last_ts: ts_str,
+                        last_ep: ep,
+                        active_secs: 0,
+                        minute_mask: bit,
+                    },
+                );
+            }
+        }
+
+        for ((tool, provider, project), acc) in groups {
+            insert_stmt.execute(params![
+                session_id,
+                &tool,
+                &provider,
+                &project,
+                hour_utc,
+                acc.events,
+                &acc.first_ts,
+                &acc.last_ts,
+                acc.active_secs,
+                acc.minute_mask,
+            ])?;
+        }
+    }
+
+    Ok(())
 }

@@ -1143,85 +1143,143 @@ fn query_session_metrics<Tz: TimeZone>(
     f: &Filter,
     tz: &Tz,
 ) -> Result<SessionMetrics> {
-    let (where_sql, params) = build_event_where(f);
+    struct SessionHourRow {
+        hour_ep: i64,
+        tool_idx: usize,
+        first_ep: i64,
+        last_ep: i64,
+        active_secs: u64,
+        minute_mask: u64,
+    }
+
+    let (where_sql, params) = build_hourly_where(f);
     let sql = format!(
-        "SELECT ts_utc, session_id, tool
-         FROM usage_event
-         WHERE {where_sql}
-         ORDER BY ts_utc ASC"
+        "SELECT session_id, tool, hour_utc, first_ts, last_ts, active_secs, minute_mask
+         FROM session_hour
+         WHERE {where_sql}"
     );
 
     let mut stmt = conn.prepare(&sql)?;
     let mut rows = stmt.query(params_from_iter(params))?;
 
-    // Estado por sesión: (índice numérico único, último instante en segundos epoch)
-    let mut session_state: FastMap<String, (usize, i64)> = FastMap::default();
-    let mut next_session_idx = 0usize;
-
-    let mut current_minute: [u8; 16] = [0; 16];
-    let mut minute_sessions: Vec<usize> = Vec::with_capacity(16);
-    let mut max_concurrency = 0_u64;
-
-    let mut total_active_secs = 0_u64;
-    let mut active_by_tool_arr = [0_u64; 3];
-    let mut active_by_hour: FastMap<[u8; 13], u64> = FastMap::default();
+    let mut session_indices: FastMap<String, usize> = FastMap::default();
+    let mut per_session: Vec<Vec<SessionHourRow>> = Vec::new();
 
     while let Some(r) = rows.next()? {
-        let ts_bytes = col_str(r, 0)?.as_bytes();
-        let session_str = col_str(r, 1)?;
-        let tool_str = col_str(r, 2)?;
+        let session_str = col_str(r, 0)?;
+        let tool_str = col_str(r, 1)?;
+        let hour_bytes = col_str(r, 2)?.as_bytes();
+        let first_bytes = col_str(r, 3)?.as_bytes();
+        let last_bytes = col_str(r, 4)?.as_bytes();
+        let active_secs = r.get::<_, i64>(5)?.max(0) as u64;
+        let minute_mask = (r.get::<_, i64>(6)?.max(0) as u64) & ((1_u64 << 60) - 1);
 
-        let ep = fast_epoch_secs(ts_bytes)?;
         let tool_idx = match tool_str {
             "claude-code" => 0,
             "antigravity" => 1,
             "opencode" => 2,
             other => return Err(other.parse::<Tool>().unwrap_err()),
         };
+        let hour_ep = fast_epoch_secs(hour_bytes)?;
+        let first_ep = fast_epoch_secs(first_bytes)?;
+        let last_ep = fast_epoch_secs(last_bytes)?;
 
-        if ts_bytes.len() >= 16 {
-            let min_slice: [u8; 16] = ts_bytes[..16].try_into().unwrap();
-            if min_slice != current_minute {
-                max_concurrency = max_concurrency.max(minute_sessions.len() as u64);
-                minute_sessions.clear();
-                current_minute = min_slice;
-            }
-        }
-
-        let session_idx = if let Some((idx, prev_ep)) = session_state.get_mut(session_str) {
-            let gap = (ep - *prev_ep).clamp(0, 300) as u64;
-            *prev_ep = ep;
-            if gap > 0 {
-                total_active_secs += gap;
-                active_by_tool_arr[tool_idx] += gap;
-                if ts_bytes.len() >= 13 {
-                    let hour_key: [u8; 13] = ts_bytes[..13].try_into().unwrap();
-                    *active_by_hour.entry(hour_key).or_insert(0) += gap;
-                }
-            }
-            *idx
-        } else {
-            let idx = next_session_idx;
-            next_session_idx += 1;
-            session_state.insert(session_str.to_owned(), (idx, ep));
-            idx
+        let entry = SessionHourRow {
+            hour_ep,
+            tool_idx,
+            first_ep,
+            last_ep,
+            active_secs,
+            minute_mask,
         };
-
-        if !minute_sessions.contains(&session_idx) {
-            minute_sessions.push(session_idx);
+        if let Some(&idx) = session_indices.get(session_str) {
+            per_session[idx].push(entry);
+        } else {
+            let idx = per_session.len();
+            session_indices.insert(session_str.to_owned(), idx);
+            per_session.push(vec![entry]);
         }
     }
-    max_concurrency = max_concurrency.max(minute_sessions.len() as u64);
+
+    let sessions = per_session.len() as u64;
+    let mut total_active_secs = 0_u64;
+    let mut active_by_tool_arr = [0_u64; 3];
+    let mut active_by_hour: FastMap<i64, u64> = FastMap::default();
+    let mut hour_minute_counts: FastMap<i64, [u32; 60]> = FastMap::default();
+
+    for mut entries in per_session {
+        if entries.len() > 1 {
+            entries.sort_unstable_by_key(|e| (e.first_ep, e.last_ep));
+        }
+
+        let first = &entries[0];
+        total_active_secs += first.active_secs;
+        active_by_tool_arr[first.tool_idx] += first.active_secs;
+        if first.active_secs > 0 {
+            *active_by_hour.entry(first.hour_ep).or_insert(0) += first.active_secs;
+        }
+
+        for i in 1..entries.len() {
+            let prev = &entries[i - 1];
+            let curr = &entries[i];
+            let inter_gap = (curr.first_ep - prev.last_ep).clamp(0, 300) as u64;
+            let added = curr.active_secs + inter_gap;
+            total_active_secs += added;
+            active_by_tool_arr[curr.tool_idx] += added;
+            if added > 0 {
+                *active_by_hour.entry(curr.hour_ep).or_insert(0) += added;
+            }
+        }
+
+        if entries.len() == 1 {
+            let mut mask = entries[0].minute_mask;
+            if mask != 0 {
+                let counts = hour_minute_counts
+                    .entry(entries[0].hour_ep)
+                    .or_insert([0_u32; 60]);
+                while mask != 0 {
+                    let bit = mask.trailing_zeros() as usize;
+                    counts[bit] += 1;
+                    mask &= mask - 1;
+                }
+            }
+        } else {
+            entries.sort_unstable_by_key(|e| e.hour_ep);
+            let mut i = 0;
+            while i < entries.len() {
+                let hour_ep = entries[i].hour_ep;
+                let mut mask = entries[i].minute_mask;
+                i += 1;
+                while i < entries.len() && entries[i].hour_ep == hour_ep {
+                    mask |= entries[i].minute_mask;
+                    i += 1;
+                }
+                if mask != 0 {
+                    let counts = hour_minute_counts.entry(hour_ep).or_insert([0_u32; 60]);
+                    while mask != 0 {
+                        let bit = mask.trailing_zeros() as usize;
+                        counts[bit] += 1;
+                        mask &= mask - 1;
+                    }
+                }
+            }
+        }
+    }
+
+    let max_concurrency = hour_minute_counts
+        .values()
+        .flat_map(|c| c.iter())
+        .copied()
+        .max()
+        .unwrap_or(0) as u64;
 
     let mut active_by_day: HashMap<NaiveDate, u64> = HashMap::new();
-    for (hour_key, secs) in active_by_hour {
-        let hour_str = std::str::from_utf8(&hour_key).map_err(|_| CoreError::Parse {
-            file: "usage_event".to_string(),
+    for (hour_ep, secs) in active_by_hour {
+        let hour_utc = DateTime::from_timestamp(hour_ep, 0).ok_or_else(|| CoreError::Parse {
+            file: "session_hour".to_string(),
             line: 0,
-            reason: "prefijo de hora UTF-8 inválido".to_string(),
+            reason: format!("timestamp de hora inválido: {hour_ep}"),
         })?;
-        let full_hour = format!("{hour_str}:00:00Z");
-        let hour_utc = parse_utc(&full_hour, "usage_event")?;
         let ld = local_date(hour_utc, tz);
         *active_by_day.entry(ld).or_insert(0) += secs;
     }
@@ -1237,7 +1295,7 @@ fn query_session_metrics<Tz: TimeZone>(
     }
 
     Ok(SessionMetrics {
-        sessions: session_state.len() as u64,
+        sessions,
         total_active_secs,
         active_by_day,
         active_by_tool,
@@ -1249,26 +1307,42 @@ fn query_total_active_secs(conn: &Connection, f: &Filter) -> Result<u64> {
     if f.from >= f.to {
         return Ok(0);
     }
-    let (where_sql, params) = build_event_where(f);
+    let (where_sql, params) = build_hourly_where(f);
     let sql = format!(
-        "SELECT ts_utc, session_id
-         FROM usage_event
-         WHERE {where_sql}
-         ORDER BY ts_utc ASC"
+        "SELECT session_id, first_ts, last_ts, active_secs
+         FROM session_hour
+         WHERE {where_sql}"
     );
     let mut stmt = conn.prepare(&sql)?;
     let mut rows = stmt.query(params_from_iter(params))?;
-    let mut last_by_session: FastMap<String, i64> = FastMap::default();
-    let mut total = 0_u64;
+
+    let mut session_indices: FastMap<String, usize> = FastMap::default();
+    let mut per_session: Vec<Vec<(i64, i64, u64)>> = Vec::new();
+
     while let Some(r) = rows.next()? {
-        let ts_bytes = col_str(r, 0)?.as_bytes();
-        let session_str = col_str(r, 1)?;
-        let ep = fast_epoch_secs(ts_bytes)?;
-        if let Some(prev_ep) = last_by_session.get_mut(session_str) {
-            total += (ep - *prev_ep).clamp(0, 300) as u64;
-            *prev_ep = ep;
+        let session_str = col_str(r, 0)?;
+        let first_ep = fast_epoch_secs(col_str(r, 1)?.as_bytes())?;
+        let last_ep = fast_epoch_secs(col_str(r, 2)?.as_bytes())?;
+        let active_secs = r.get::<_, i64>(3)?.max(0) as u64;
+
+        let entry = (first_ep, last_ep, active_secs);
+        if let Some(&idx) = session_indices.get(session_str) {
+            per_session[idx].push(entry);
         } else {
-            last_by_session.insert(session_str.to_owned(), ep);
+            let idx = per_session.len();
+            session_indices.insert(session_str.to_owned(), idx);
+            per_session.push(vec![entry]);
+        }
+    }
+
+    let mut total = 0_u64;
+    for mut entries in per_session {
+        if entries.len() > 1 {
+            entries.sort_unstable_by_key(|e| (e.0, e.1));
+        }
+        total += entries[0].2;
+        for i in 1..entries.len() {
+            total += entries[i].2 + (entries[i].0 - entries[i - 1].1).clamp(0, 300) as u64;
         }
     }
     Ok(total)

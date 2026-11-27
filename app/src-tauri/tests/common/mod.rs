@@ -1,5 +1,8 @@
-use chrono::{DateTime, Duration, Utc};
+use std::collections::BTreeMap;
+
+use chrono::{DateTime, Duration, Timelike, Utc};
 use gestor_core::cost::{CostKind, apply_cost};
+use gestor_core::ingest::refresh_session_hour;
 use gestor_core::model::{Provider, Tool, UsageEvent, plan_for};
 use gestor_core::time::{fmt_utc, hour_utc_str};
 use rusqlite::{Connection, params};
@@ -18,6 +21,7 @@ pub fn insert_event(conn: &Connection, ev: &UsageEvent) {
         .unwrap();
 
     upsert_hourly_agg(conn, ev, cost_usd, &cost_kind);
+    refresh_session_hour(conn, &ev.session_id, &hour_utc_str(ev.ts_utc)).unwrap();
 }
 
 #[allow(dead_code)]
@@ -57,6 +61,7 @@ pub fn insert_event_with_cost(
     .unwrap();
 
     upsert_hourly_agg(conn, ev, cost_usd, cost_kind.as_str());
+    refresh_session_hour(conn, &ev.session_id, &hour_utc_str(ev.ts_utc)).unwrap();
 }
 
 fn insert_raw_event(conn: &Connection, ev: &UsageEvent) {
@@ -212,6 +217,104 @@ pub fn generate_synthetic_events(
                 50_i64, 850_i64, 40_i64, 0.01_f64, kind, &ts_str,
             ])
             .unwrap();
+        }
+    }
+
+    {
+        struct SynAcc {
+            events: i64,
+            first_ts: String,
+            last_ts: String,
+            last_ep: i64,
+            active_secs: i64,
+            minute_mask: i64,
+        }
+        let mut sh_stmt = tx
+            .prepare(
+                "INSERT INTO session_hour (
+                    session_id, tool, provider, project, hour_utc,
+                    events, first_ts, last_ts, active_secs, minute_mask
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            )
+            .unwrap();
+        let tools = [
+            ("claude-code", "anthropic"),
+            ("antigravity", "google"),
+            ("opencode", "deepseek"),
+        ];
+        let mut current_session_idx = 0_usize;
+        let mut current_session_id = "syn-0".to_string();
+        let mut batch: BTreeMap<(&'static str, &'static str, &'static str, String), SynAcc> =
+            BTreeMap::new();
+
+        for i in 0..count {
+            let s_idx = i / 50;
+            if s_idx != current_session_idx {
+                for ((tool, provider, project, hour_utc), acc) in std::mem::take(&mut batch) {
+                    sh_stmt
+                        .execute(params![
+                            &current_session_id,
+                            tool,
+                            provider,
+                            project,
+                            &hour_utc,
+                            acc.events,
+                            &acc.first_ts,
+                            &acc.last_ts,
+                            acc.active_secs,
+                            acc.minute_mask,
+                        ])
+                        .unwrap();
+                }
+                current_session_idx = s_idx;
+                current_session_id = format!("syn-{s_idx}");
+            }
+
+            let (tool, provider) = tools[i % tools.len()];
+            let project = if i % 4 == 0 { "" } else { "Alpha" };
+            let offset_secs = ((i as i64) * total_secs) / (count as i64).max(1);
+            let ts = start + Duration::seconds(offset_secs);
+            let ts_str = fmt_utc(ts);
+            let hour_utc = hour_utc_str(ts);
+            let ep = ts.timestamp();
+            let bit = 1_i64 << ts.minute();
+
+            let key = (tool, provider, project, hour_utc);
+            if let Some(acc) = batch.get_mut(&key) {
+                acc.events += 1;
+                acc.last_ts = ts_str;
+                acc.active_secs += (ep - acc.last_ep).clamp(0, 300);
+                acc.last_ep = ep;
+                acc.minute_mask |= bit;
+            } else {
+                batch.insert(
+                    key,
+                    SynAcc {
+                        events: 1,
+                        first_ts: ts_str.clone(),
+                        last_ts: ts_str,
+                        last_ep: ep,
+                        active_secs: 0,
+                        minute_mask: bit,
+                    },
+                );
+            }
+        }
+        for ((tool, provider, project, hour_utc), acc) in batch {
+            sh_stmt
+                .execute(params![
+                    &current_session_id,
+                    tool,
+                    provider,
+                    project,
+                    &hour_utc,
+                    acc.events,
+                    &acc.first_ts,
+                    &acc.last_ts,
+                    acc.active_secs,
+                    acc.minute_mask,
+                ])
+                .unwrap();
         }
     }
 

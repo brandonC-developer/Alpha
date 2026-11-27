@@ -39,6 +39,7 @@ fn tablas_existen() {
     let expected_tables = [
         "usage_event",
         "hourly_agg",
+        "session_hour",
         "source_file",
         "ingest_error",
         "price",
@@ -64,6 +65,7 @@ fn tablas_existen() {
         "ix_event_session",
         "ix_event_model",
         "ix_event_plan",
+        "ix_session_hour",
     ];
     for index in expected_indexes {
         let count: i64 = conn

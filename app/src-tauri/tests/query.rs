@@ -1,14 +1,21 @@
 mod common;
 
+use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::time::Instant;
 
-use chrono::{DateTime, Duration, FixedOffset, Utc};
+use chrono::{DateTime, Duration, FixedOffset, NaiveDate, TimeZone, Utc};
 use common::{generate_synthetic_events, insert_event, insert_event_with_cost, make_event};
+use gestor_core::collectors::Collector;
+use gestor_core::collectors::antigravity::AntigravityCollector;
+use gestor_core::collectors::claude_code::ClaudeCodeCollector;
 use gestor_core::cost::CostKind;
 use gestor_core::db::open_memory;
+use gestor_core::ingest::scan_all;
 use gestor_core::model::{Provider, Tool};
 use gestor_core::query::{Filter, costs, dashboard, session_detail, sessions};
-use gestor_core::time::fmt_utc;
+use gestor_core::time::{fmt_utc, local_date};
+use rusqlite::{Connection, params_from_iter};
 
 fn utc(s: &str) -> DateTime<Utc> {
     s.parse().unwrap()
@@ -630,6 +637,7 @@ fn panel_rapido() {
     let t0 = Instant::now();
     let d = dashboard(&conn, &f, &tz).unwrap();
     let elapsed = t0.elapsed();
+    println!("panel_rapido dashboard: {} ms", elapsed.as_millis());
 
     assert!((d.kpis.turns.value - 1_000_000.0).abs() < 1e-9);
     assert!(
@@ -637,4 +645,362 @@ fn panel_rapido() {
         "dashboard tardó {} ms (objetivo < 300 ms)",
         elapsed.as_millis()
     );
+}
+
+#[derive(Debug, PartialEq)]
+struct RefMetrics {
+    sessions: u64,
+    active_secs: u64,
+    prev_active_secs: u64,
+    max_concurrency: u64,
+    active_by_day: HashMap<NaiveDate, u64>,
+    active_by_tool: HashMap<Tool, u64>,
+}
+
+fn reference_metrics_from_events<Tz: TimeZone>(
+    conn: &Connection,
+    f: &Filter,
+    tz: &Tz,
+) -> RefMetrics {
+    fn scan_range<Tz: TimeZone>(
+        conn: &Connection,
+        f: &Filter,
+        tz: &Tz,
+    ) -> (u64, u64, u64, HashMap<NaiveDate, u64>, HashMap<Tool, u64>) {
+        if f.from >= f.to {
+            return (0, 0, 0, HashMap::new(), HashMap::new());
+        }
+        let mut clauses = vec!["ts_utc >= ?1".to_string(), "ts_utc < ?2".to_string()];
+        let mut params = vec![
+            rusqlite::types::Value::Text(fmt_utc(f.from)),
+            rusqlite::types::Value::Text(fmt_utc(f.to)),
+        ];
+        if let Some(tool) = f.tool {
+            let idx = params.len() + 1;
+            clauses.push(format!("tool = ?{idx}"));
+            params.push(rusqlite::types::Value::Text(tool.as_str().to_string()));
+        }
+        if let Some(provider) = f.provider {
+            let idx = params.len() + 1;
+            clauses.push(format!("provider = ?{idx}"));
+            params.push(rusqlite::types::Value::Text(provider.as_str().to_string()));
+        }
+        if let Some(ref project) = f.project {
+            let idx = params.len() + 1;
+            if project.is_empty() {
+                clauses.push(format!("COALESCE(project, '') = ?{idx}"));
+            } else {
+                clauses.push(format!("project = ?{idx}"));
+            }
+            params.push(rusqlite::types::Value::Text(project.clone()));
+        }
+
+        let sql = format!(
+            "SELECT ts_utc, session_id, tool
+             FROM usage_event
+             WHERE {}
+             ORDER BY ts_utc ASC, dedup_key ASC",
+            clauses.join(" AND ")
+        );
+        let mut stmt = conn.prepare(&sql).unwrap();
+        let mut rows = stmt.query(params_from_iter(params)).unwrap();
+
+        let mut last_by_session: HashMap<String, i64> = HashMap::new();
+        let mut minute_sessions: HashMap<i64, HashSet<String>> = HashMap::new();
+        let mut active_by_day: HashMap<NaiveDate, u64> = HashMap::new();
+        let mut active_by_tool: HashMap<Tool, u64> = HashMap::new();
+        let mut total_active = 0_u64;
+
+        while let Some(r) = rows.next().unwrap() {
+            let ts_str: String = r.get(0).unwrap();
+            let session_id: String = r.get(1).unwrap();
+            let tool: Tool = r.get::<_, String>(2).unwrap().parse().unwrap();
+            let ts: DateTime<Utc> = ts_str.parse().unwrap();
+            let ep = ts.timestamp();
+
+            minute_sessions
+                .entry(ep.div_euclid(60))
+                .or_default()
+                .insert(session_id.clone());
+
+            if let Some(prev_ep) = last_by_session.get_mut(&session_id) {
+                let gap = (ep - *prev_ep).clamp(0, 300) as u64;
+                *prev_ep = ep;
+                total_active += gap;
+                *active_by_tool.entry(tool).or_insert(0) += gap;
+                *active_by_day.entry(local_date(ts, tz)).or_insert(0) += gap;
+            } else {
+                last_by_session.insert(session_id, ep);
+            }
+        }
+
+        let max_conc = minute_sessions
+            .values()
+            .map(|s| s.len() as u64)
+            .max()
+            .unwrap_or(0);
+
+        (
+            last_by_session.len() as u64,
+            total_active,
+            max_conc,
+            active_by_day,
+            active_by_tool,
+        )
+    }
+
+    let (sessions, active_secs, max_concurrency, active_by_day, active_by_tool) =
+        scan_range(conn, f, tz);
+    let dur = f.to - f.from;
+    let prev = Filter {
+        from: f.from - dur,
+        to: f.from,
+        tool: f.tool,
+        provider: f.provider,
+        project: f.project.clone(),
+    };
+    let (_, prev_active_secs, _, _, _) = scan_range(conn, &prev, tz);
+
+    RefMetrics {
+        sessions,
+        active_secs,
+        prev_active_secs,
+        max_concurrency,
+        active_by_day,
+        active_by_tool,
+    }
+}
+
+#[test]
+fn session_hour_equivale_a_eventos() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cc_root = tmp.path().join("claude");
+    let ag_root = tmp.path().join("antigravity");
+    fs::create_dir_all(&cc_root).unwrap();
+
+    // Generamos ~2.040 eventos en archivos reales de Claude Code y Antigravity:
+    // - Varias sesiones (24)
+    // - Huecos < 5 min (15 s, 90 s, 299 s, 300 s) y > 5 min (301 s, 450 s, 1200 s)
+    // - Eventos fuera de orden dentro de un archivo y repartidos entre 2 archivos de la misma sesión
+    // - Sesiones que cruzan cambios de hora UTC y cambio de día local
+    // - Varias sesiones coincidiendo en el mismo minuto (concurrencia > 1)
+    let base = utc("2026-11-25T08:40:00Z");
+
+    let mut cc_lines_a: Vec<String> = Vec::new();
+    let mut cc_lines_b: Vec<String> = Vec::new();
+    let mut seq = 0_usize;
+
+    // 16 sesiones de Claude Code × 90 eventos = 1.440 eventos
+    // Las 4 primeras van en el periodo anterior (Nov 25), las 12 siguientes en Nov 26 (cruzando horas y días)
+    for s in 0..16_usize {
+        let session_id = format!("cc-eq-{s:02}");
+        let cwd = match s % 3 {
+            0 => Some(r"E:\\Proyectos\\Alpha"),
+            1 => Some(r"E:\\Proyectos\\Beta"),
+            _ => None,
+        };
+        let mut ts = if s < 4 {
+            base + Duration::hours((s as i64) * 2) + Duration::minutes(45)
+        } else {
+            // Arrancan cerca del cambio de hora (:52:00) para cruzar horas, y algunas coinciden en el mismo minuto
+            let day_offset = if s < 10 { 24 } else { 30 };
+            let group_slot = ((s - 4) / 3) as i64; // grupos de 3 sesiones comparten minutos exactos
+            base + Duration::hours(day_offset + group_slot * 2) + Duration::minutes(52)
+        };
+
+        let mut session_lines: Vec<String> = Vec::new();
+        for k in 0..90_usize {
+            seq += 1;
+            let gap_secs = match k % 7 {
+                0 => 15,
+                1 => 90,
+                2 => 299,
+                3 => 300,
+                4 => 301,
+                5 => 450,
+                _ => 45,
+            };
+            if k > 0 {
+                ts += Duration::seconds(gap_secs);
+            }
+            let ts_str = fmt_utc(ts);
+            let cwd_field = match cwd {
+                Some(p) => format!(r#","cwd":"{p}""#),
+                None => String::new(),
+            };
+            session_lines.push(format!(
+                r#"{{"type":"assistant","sessionId":"{session_id}"{cwd_field},"timestamp":"{ts_str}","requestId":"req_{seq}","message":{{"id":"msg_{seq}","model":"claude-opus-5-5","usage":{{"input_tokens":100,"cache_creation_input_tokens":20,"cache_read_input_tokens":300,"output_tokens":50}}}}}}"#
+            ));
+        }
+
+        // Desordenar deliberadamente dentro de la sesión y repartir entre dos archivos para probar recálculo
+        let mut shuffled = Vec::with_capacity(session_lines.len());
+        for chunk in session_lines.chunks(5) {
+            for line in chunk.iter().rev() {
+                shuffled.push(line.clone());
+            }
+        }
+        for (idx, line) in shuffled.into_iter().enumerate() {
+            if idx % 4 == 0 {
+                cc_lines_b.push(line);
+            } else {
+                cc_lines_a.push(line);
+            }
+        }
+    }
+
+    // Mezclar líneas de distintas sesiones en cc_lines_a (orden inverso para forzar aún más desorden)
+    cc_lines_a.reverse();
+    fs::write(cc_root.join("parte_a.jsonl"), cc_lines_a.join("\n") + "\n").unwrap();
+    fs::write(cc_root.join("parte_b.jsonl"), cc_lines_b.join("\n") + "\n").unwrap();
+
+    // 8 sesiones de Antigravity × 75 eventos = 600 eventos (total = 2.040 eventos)
+    for s in 0..8_usize {
+        let uuid = format!("7f0c2a10-0000-4000-8000-{s:012}");
+        let log_dir = ag_root.join(&uuid).join(".system_generated").join("logs");
+        fs::create_dir_all(&log_dir).unwrap();
+        let mut ts = base + Duration::hours(24 + ((s / 2) as i64) * 2) + Duration::minutes(52);
+        let mut ag_lines: Vec<String> = Vec::new();
+        for step in 0..75_usize {
+            if step > 0 {
+                let gap_secs = match step % 5 {
+                    0 => 600,
+                    1 => 25,
+                    2 => 180,
+                    3 => 305,
+                    _ => 60,
+                };
+                ts += Duration::seconds(gap_secs);
+            }
+            let ts_str = fmt_utc(ts);
+            ag_lines.push(format!(
+                r#"{{"step_index":{step},"source":"MODEL","created_at":"{ts_str}","model":"gemini-4-neon-xhigh","input_tokens":200,"cache_read_tokens":400,"output_tokens":80}}"#
+            ));
+        }
+        // Invertir por bloques para insertar eventos fuera de orden
+        let mut out_of_order = Vec::with_capacity(ag_lines.len());
+        for chunk in ag_lines.chunks(4) {
+            for line in chunk.iter().rev() {
+                out_of_order.push(line.clone());
+            }
+        }
+        fs::write(
+            log_dir.join("transcript.jsonl"),
+            out_of_order.join("\n") + "\n",
+        )
+        .unwrap();
+    }
+
+    let mut conn = open_memory().unwrap();
+    let collectors: Vec<Box<dyn Collector>> = vec![
+        Box::new(ClaudeCodeCollector::new(cc_root)),
+        Box::new(AntigravityCollector::new(vec![ag_root])),
+    ];
+    let stats = scan_all(
+        &mut conn,
+        &collectors,
+        &|_, _| {},
+        utc("2026-11-27T12:00:00Z"),
+    )
+    .unwrap();
+    assert_eq!(stats.new_events, 2040);
+
+    let session_hour_rows: i64 = conn
+        .query_row("SELECT COUNT(*) FROM session_hour", [], |r| r.get(0))
+        .unwrap();
+    assert!(session_hour_rows > 0);
+
+    let filters = [
+        Filter {
+            from: utc("2026-11-26T00:00:00Z"),
+            to: utc("2026-11-27T06:00:00Z"),
+            tool: None,
+            provider: None,
+            project: None,
+        },
+        Filter {
+            from: utc("2026-11-26T06:00:00Z"),
+            to: utc("2026-11-27T06:00:00Z"),
+            tool: Some(Tool::ClaudeCode),
+            provider: None,
+            project: None,
+        },
+        Filter {
+            from: utc("2026-11-26T06:00:00Z"),
+            to: utc("2026-11-27T06:00:00Z"),
+            tool: Some(Tool::Antigravity),
+            provider: Some(Provider::Google),
+            project: None,
+        },
+        Filter {
+            from: utc("2026-11-26T06:00:00Z"),
+            to: utc("2026-11-27T06:00:00Z"),
+            tool: None,
+            provider: None,
+            project: Some("Alpha".to_string()),
+        },
+        Filter {
+            from: utc("2026-11-26T06:00:00Z"),
+            to: utc("2026-11-27T06:00:00Z"),
+            tool: Some(Tool::ClaudeCode),
+            provider: None,
+            project: Some(String::new()),
+        },
+    ];
+
+    for (idx, f) in filters.iter().enumerate() {
+        let tz = utc_minus_6();
+        let d = dashboard(&conn, f, &tz).unwrap();
+        let r = reference_metrics_from_events(&conn, f, &tz);
+
+        assert_eq!(d.kpis.sessions, r.sessions, "filtro {idx}: sessions");
+        assert!(
+            (d.kpis.active_secs.value - r.active_secs as f64).abs() < 1e-9,
+            "filtro {idx}: active_secs {} != {}",
+            d.kpis.active_secs.value,
+            r.active_secs
+        );
+        assert_eq!(
+            d.kpis.max_concurrency, r.max_concurrency,
+            "filtro {idx}: max_concurrency"
+        );
+
+        let expected_delta = if r.prev_active_secs > 0 {
+            Some(
+                (r.active_secs as f64 - r.prev_active_secs as f64) / r.prev_active_secs as f64
+                    * 100.0,
+            )
+        } else {
+            None
+        };
+        match (d.kpis.active_secs.delta_pct, expected_delta) {
+            (Some(a), Some(b)) => {
+                assert!((a - b).abs() < 1e-9, "filtro {idx}: delta_pct {a} != {b}")
+            }
+            (None, None) => {}
+            other => panic!("filtro {idx}: delta_pct mismatch {other:?}"),
+        }
+
+        // Verificar spark diario de active_secs
+        assert_eq!(d.kpis.active_secs.spark.len(), d.by_day.len());
+        for (day, spark_val) in d.by_day.iter().zip(d.kpis.active_secs.spark.iter()) {
+            let nd: NaiveDate = day.date.parse().unwrap();
+            let expected = *r.active_by_day.get(&nd).unwrap_or(&0) as f64;
+            assert!(
+                (*spark_val - expected).abs() < 1e-9,
+                "filtro {idx} día {}: spark {spark_val} != {expected}",
+                day.date
+            );
+        }
+
+        // Verificar active_secs por herramienta
+        for t in &d.by_tool {
+            let expected = *r.active_by_tool.get(&t.tool).unwrap_or(&0);
+            assert_eq!(
+                t.active_secs, expected,
+                "filtro {idx} tool {:?}: {} != {}",
+                t.tool, t.active_secs, expected
+            );
+        }
+    }
 }

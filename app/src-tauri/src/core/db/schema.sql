@@ -41,6 +41,21 @@ CREATE TABLE hourly_agg (
   PRIMARY KEY (hour_utc, tool, provider, plan_id, model, project)
 );
 
+CREATE TABLE session_hour (                    -- resumen por sesión y hora para el Panel (fase 3: panel_rapido)
+  session_id  TEXT NOT NULL,
+  tool        TEXT NOT NULL,
+  provider    TEXT NOT NULL,
+  project     TEXT NOT NULL DEFAULT '',
+  hour_utc    TEXT NOT NULL,                   -- 'YYYY-MM-DDTHH:00:00Z'
+  events      INTEGER NOT NULL,
+  first_ts    TEXT NOT NULL,                   -- primer evento de la sesión en esa hora (ISO 8601 con Z)
+  last_ts     TEXT NOT NULL,                   -- último evento de la sesión en esa hora
+  active_secs INTEGER NOT NULL,                -- huecos entre eventos consecutivos dentro de la hora, máximo 300 s cada uno
+  minute_mask INTEGER NOT NULL,                -- bit m (0–59) = hubo algún evento en el minuto m
+  PRIMARY KEY (session_id, tool, provider, project, hour_utc)
+);
+CREATE INDEX ix_session_hour ON session_hour(hour_utc);
+
 CREATE TABLE source_file (
   id          INTEGER PRIMARY KEY,
   collector   TEXT NOT NULL,

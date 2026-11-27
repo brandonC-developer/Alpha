@@ -541,3 +541,95 @@ fn archivo_vacio_y_crlf_con_bom() {
     assert_eq!(stats.new_events, 2);
     assert_eq!(stats.line_errors, 0);
 }
+
+#[derive(Debug, PartialEq, Eq)]
+struct SessionHourRow {
+    session_id: String,
+    tool: String,
+    provider: String,
+    project: String,
+    hour_utc: String,
+    events: i64,
+    first_ts: String,
+    last_ts: String,
+    active_secs: i64,
+    minute_mask: i64,
+}
+
+fn dump_session_hour(conn: &rusqlite::Connection) -> Vec<SessionHourRow> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT session_id, tool, provider, project, hour_utc,
+                    events, first_ts, last_ts, active_secs, minute_mask
+             FROM session_hour
+             ORDER BY session_id ASC, tool ASC, provider ASC, project ASC, hour_utc ASC",
+        )
+        .unwrap();
+    stmt.query_map([], |r| {
+        Ok(SessionHourRow {
+            session_id: r.get(0)?,
+            tool: r.get(1)?,
+            provider: r.get(2)?,
+            project: r.get(3)?,
+            hour_utc: r.get(4)?,
+            events: r.get(5)?,
+            first_ts: r.get(6)?,
+            last_ts: r.get(7)?,
+            active_secs: r.get(8)?,
+            minute_mask: r.get(9)?,
+        })
+    })
+    .unwrap()
+    .map(|r| r.unwrap())
+    .collect()
+}
+
+#[test]
+fn reingestar_no_cambia_session_hour() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cc_root = tmp.path().join("claude");
+    fs::create_dir_all(&cc_root).unwrap();
+
+    let file_path = cc_root.join("sesion.jsonl");
+    let lines = concat!(
+        r#"{"type":"assistant","sessionId":"s-reing","cwd":"E:\\Proyectos\\Alpha","timestamp":"2026-11-26T15:58:10Z","requestId":"req_1","message":{"id":"msg_1","model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":20}}}"#,
+        "\n",
+        r#"{"type":"assistant","sessionId":"s-reing","cwd":"E:\\Proyectos\\Alpha","timestamp":"2026-11-26T15:59:40Z","requestId":"req_2","message":{"id":"msg_2","model":"claude-opus-5-5","usage":{"input_tokens":15,"output_tokens":25}}}"#,
+        "\n",
+        r#"{"type":"assistant","sessionId":"s-reing","cwd":"E:\\Proyectos\\Alpha","timestamp":"2026-11-26T16:01:20Z","requestId":"req_3","message":{"id":"msg_3","model":"claude-opus-5-5","usage":{"input_tokens":20,"output_tokens":30}}}"#,
+        "\n",
+    );
+    fs::write(&file_path, lines).unwrap();
+
+    let mut conn = open_memory().unwrap();
+    let collector = ClaudeCodeCollector::new(cc_root.clone());
+    let collectors: Vec<Box<dyn Collector>> =
+        vec![Box::new(ClaudeCodeCollector::new(cc_root.clone()))];
+
+    let stats1 = scan_all(&mut conn, &collectors, &|_, _| {}, fixed_now()).unwrap();
+    assert_eq!(stats1.new_events, 3);
+
+    let snapshot1 = dump_session_hour(&conn);
+    assert_eq!(snapshot1.len(), 2);
+
+    // 1. Segundo scan_all sin cambios -> session_hour idéntico
+    let stats2 = scan_all(&mut conn, &collectors, &|_, _| {}, fixed_now()).unwrap();
+    assert_eq!(stats2.new_events, 0);
+    assert_eq!(dump_session_hour(&conn), snapshot1);
+
+    // 2. Forzar relectura completa del archivo (p. ej. reset de read_offset / archivo duplicado) -> session_hour idéntico
+    conn.execute("UPDATE source_file SET read_offset = 0", [])
+        .unwrap();
+    let stats3 = ingest_file(&mut conn, &collector, &file_path, fixed_now()).unwrap();
+    assert_eq!(stats3.new_events, 0);
+    assert_eq!(stats3.duplicates, 3);
+    assert_eq!(dump_session_hour(&conn), snapshot1);
+
+    // 3. Segundo archivo con los mismos eventos duplicados -> session_hour idéntico
+    let dup_file = cc_root.join("duplicado.jsonl");
+    fs::write(&dup_file, lines).unwrap();
+    let stats4 = ingest_file(&mut conn, &collector, &dup_file, fixed_now()).unwrap();
+    assert_eq!(stats4.new_events, 0);
+    assert_eq!(stats4.duplicates, 3);
+    assert_eq!(dump_session_hour(&conn), snapshot1);
+}
