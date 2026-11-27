@@ -1,0 +1,11 @@
+use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+
+/// Calcula las horas transcurridas entre `a` y `b` (positivo si `b` es posterior a `a`).
+pub fn hours_between(a: DateTime<Utc>, b: DateTime<Utc>) -> f64 {
+    b.signed_duration_since(a).num_milliseconds() as f64 / 3_600_000.0
+}
+
+/// Convierte un instante UTC a su fecha local en la zona horaria `tz`.
+pub fn local_date<Tz: TimeZone>(ts: DateTime<Utc>, tz: &Tz) -> NaiveDate {
+    ts.with_timezone(tz).date_naive()
+}
