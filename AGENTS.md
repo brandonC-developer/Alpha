@@ -47,6 +47,7 @@ Si dos fuentes se contradicen, gana la de número menor y lo anotas en `handoff/
 - **Un límite sin calibrar no muestra porcentaje.**
 - La **clave de DeepSeek** solo vive en el Administrador de credenciales de Windows. Nunca en la base de datos, exportaciones, logs, errores ni respuestas de comandos.
 - **Red:** solo `https://api.deepseek.com`, y solo si hay clave.
+- **Procesos:** la app solo ejecuta `agy -p "/usage" --output-format json --print-timeout 20s`, sin shell y con tiempo límite, para leer la cuota de Google AI Pro. Nunca otro comando ni otro prompt, y su salida nunca se registra entera.
 - `gestor_core` **no depende de Tauri**.
 - Toda función que dependa de la hora recibe `now` (y `tz` si hace falta) como parámetro.
 

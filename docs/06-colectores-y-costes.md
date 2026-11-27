@@ -79,6 +79,43 @@ Medido en la fase 0 (27/11/2026) con opencode 1.19.6.
 - **No se leen las partes `step-finish`:** repiten exactamente los tokens de su mensaje (6 de 6 coincidencias). Sumarlas contaría dos veces.
 - **Nunca se lee la tabla `credential`** ni las columnas de texto de `part`.
 
+### 1.4 Cuota de Google AI Pro con `agy` (calibración automática)
+
+Decisión del usuario (27/11/2026), ADR-6. Medido en la fase 0: tarda unos 3 s, gasta 0 tokens y no crea ninguna conversación.
+
+- **Comando exacto**, sin shell, con `CREATE_NO_WINDOW` y 30 s como máximo: `agy -p "/usage" --output-format json --print-timeout 20s`. Se ejecuta cada 15 min, al arrancar la app y con el botón «Actualizar» de Planes, solo si `agyAutoCalibrate` es `true` y `agy` está en el PATH.
+- **Se lee solo** `command.data.groups[].buckets[]`: `id`, `window`, `remaining_fraction` y `reset_time`. Los textos (`description`, `name`) no se guardan, y la salida nunca se registra entera.
+
+| `bucket.id` | Plan | Ventana |
+| --- | --- | --- |
+| `gemini-5h` | `google-ai-pro` | `5h` |
+| `gemini-weekly` | `google-ai-pro` | `weekly` |
+| `3p-5h` | `google-ai-pro-claude` | `5h` |
+| `3p-weekly` | `google-ai-pro-claude` | `weekly` |
+
+Si aparece otro `id`, se ignora y se cuenta como aviso en Fuentes.
+
+- **Calibración:** `percent = (1 − remaining_fraction) × 100`. Se llama a `calibrate(plan, ventana, percent)` con `source = 'agy'` y `resets_at = reset_time`.
+  - Si `remaining_fraction = 1` o la app no midió uso en esa ventana, no se calibra.
+  - `reset_time = 1970-01-01T00:00:00Z` significa «sin ventana abierta» y se guarda como `NULL`.
+- **Límite estimado:** la media de las 8 calibraciones `agy` más recientes de esa ventana, para que un dato raro no lo mueva. Las calibraciones a mano (`source = 'user'`) siguen valiendo, para Claude Pro y si `agy` no está.
+- **Reinicio:** si la última calibración `agy` tiene menos de 20 min, `resetsAt` es el oficial (`resets_at`). Si no, el que calcula la app con su bloque de 5 h.
+- **Limitación:** el % oficial incluye lo que el usuario gaste en la web o en la app móvil de Gemini. La app reparte ese gasto en el límite estimado, igual que con la calibración manual.
+
+**Fixture `agy/usage.json`** (números inventados; los textos de `description` no se leen):
+
+```json
+{"conversation_id":"","status":"SUCCESS","response":"","duration_seconds":0,"num_turns":0,
+ "usage":{"input_tokens":0,"output_tokens":0,"thinking_tokens":0,"cache_read_tokens":0,"total_tokens":0},
+ "command":{"name":"usage","data":{"description":"secreto-del-prompt","groups":[
+  {"name":"Gemini Models","description":"x","buckets":[
+   {"id":"gemini-weekly","name":"Weekly Limit Remaining","description":"x","window":"weekly","remaining_fraction":0.75,"reset_time":"2026-12-03T14:25:59Z"},
+   {"id":"gemini-5h","name":"Five Hour Limit Remaining","description":"x","window":"5h","remaining_fraction":0.6,"reset_time":"2026-11-27T20:02:00Z"}]},
+  {"name":"Claude and GPT models","description":"x","buckets":[
+   {"id":"3p-weekly","name":"Weekly Limit Remaining","description":"x","window":"weekly","remaining_fraction":0.5,"reset_time":"2026-12-03T22:40:28Z"},
+   {"id":"3p-5h","name":"Five Hour Limit Remaining","window":"5h","remaining_fraction":1,"reset_time":"1970-01-01T00:00:00Z"}]}]}}}
+```
+
 ## 2. Plan de cada evento
 
 | `tool` | `provider` | `plan_id` | `cost_kind` |

@@ -96,6 +96,8 @@ export interface CallRow { ts: string; model: string; tokens: Tokens; reasoning:
 export interface WindowStatus {
   name: WindowName; used: number; limit: number | null; percent: number | null;
   resetsAt: string | null; exhaustsAt: string | null; unpricedEvents: number;
+  calibratedBy: 'agy' | 'user' | null;   // origen de la última calibración
+  calibratedAt: string | null;
 }
 export interface PlanView {
   id: PlanId; name: string; kind: 'subscription' | 'payg';
@@ -110,6 +112,10 @@ export interface PlanView {
 ### `calibrate_plan(planId: PlanId, window: WindowName, percent: number) → WindowStatus`
 
 `percent` en [1, 100]. Fuera de rango → `{ code: 'invalid', message: 'El porcentaje debe estar entre 1 y 100' }`. Sin uso en la ventana → `{ code: 'invalid', message: 'No hay uso en esta ventana: usa la herramienta y vuelve a calibrar' }`.
+
+### `refresh_agy_usage() → PlanView[]`
+
+Ejecuta `agy -p "/usage" --output-format json` y calibra `google-ai-pro` y `google-ai-pro-claude` (`06` §1.4). Sin `agy` en el PATH → `{ code: 'unavailable', message: 'No se encontró agy: calibra a mano en Antigravity › View Usage' }`. Más de 30 s → `{ code: 'timeout', message: 'agy no respondió: se reintentará en 15 min' }`. La app lo llama también sola cada 15 min si `agyAutoCalibrate` es `true`.
 
 ### `update_plan(planId: PlanId, monthlyFeeUsd: number, budgetUsd: number | null) → PlanView`
 
@@ -152,6 +158,7 @@ export interface Settings {
   alertWeeklyLevel: number;          // 80
   alertBudgetLevel: number;          // 80
   alertAnomaly: boolean;             // true
+  agyAutoCalibrate: boolean;         // true: calibrar Google AI Pro con agy cada 15 min
   deepseekKeySaved: boolean;         // solo lectura
 }
 ```

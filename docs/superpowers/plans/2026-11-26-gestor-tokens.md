@@ -31,7 +31,7 @@
 | --- | --- | --- | --- |
 | CU1 | Primera vez que abro la app | Instalar → la app detecta las carpetas de Claude Code y Antigravity → importa el histórico con barra de progreso → Panel | Veo meses de uso en menos de un minuto |
 | CU2 | Quiero saber qué consume mi cuota | Panel → rango 7 días → tabla de agentes → clic en Antigravity | Todo el panel se filtra a Antigravity |
-| CU3 | Estoy en mitad de una fase de Antigravity | Bandeja: el icono marca 72 % → menú: «Google AI Pro 5 h: 72 %, se agota a las 17:40» | Decido pausar o pasar a la reserva |
+| CU3 | Estoy en mitad de una fase de Antigravity | Bandeja: el icono marca 72 % → menú: «Google · Gemini 5 h: 72 %, se agota a las 17:40» | Decido pausar o pasar a la reserva |
 | CU4 | Calibro el límite | Planes → Claude Pro → «Calibrar» → escribo el % que muestra `/usage` → Guardar | La barra pasa a mostrar porcentaje y hora de agotamiento |
 | CU5 | Me llega un aviso | La ventana de 5 h llega al 80 % → notificación de Windows | Lo sé antes de que el agente se pare |
 | CU6 | ¿Me rinde Claude Pro? | Costes → rango 30 días | «Claude Pro: 20 $, equivalente API 312 $ → 15,6×» |
@@ -187,7 +187,7 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 ```rust
 #[test] fn esquema_se_aplica_una_vez() { /* open_db dos veces sobre el mismo archivo temporal → user_version = 1 y sin error */ }
 #[test] fn tablas_existen() { /* las 10 tablas de 03-arquitectura §3 existen */ }
-#[test] fn planes_sembrados() { /* 4 filas en plan; cambiar monthly_fee_usd y reabrir → se conserva */ }
+#[test] fn planes_sembrados() { /* 4 filas en plan: «Claude Pro», «Google AI Pro · Gemini» (con la cuota mensual), «Google AI Pro · Claude y GPT» (cuota 0: es el mismo pago) y «DeepSeek»; cambiar monthly_fee_usd y reabrir → se conserva */ }
 #[test] fn plan_por_herramienta() {
     assert_eq!(plan_for(Tool::ClaudeCode, Provider::Anthropic), "claude-pro");
     assert_eq!(plan_for(Tool::Antigravity, Provider::Google), "google-ai-pro");
@@ -380,14 +380,15 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 **Peso:** M · **Razonamiento:** alto · **Agente:** `implementador-nucleo` (en paralelo con T7)
 
 **Archivos:**
-- Crear: `core/plans.rs`
-- Prueba: `tests/plans.rs`
+- Crear: `core/plans.rs`, `core/agy_usage.rs`, `tests/fixtures/agy/usage.json` (literal de `06` §1.4)
+- Prueba: `tests/plans.rs`, `tests/agy_usage.rs`
 
 **Interfaces:**
 - Produce:
   - `struct Plan` y `enum PlanKind { Subscription, Payg }` que leen las filas de `plan` sembradas en T2; `fn update_plan(conn, plan_id, monthly_fee_usd: f64, budget_usd: Option<f64>) -> Result<Plan>`.
   - `fn current_block(points: &[(DateTime<Utc>, f64)], now: DateTime<Utc>, hours: i64) -> Option<Block>`; `Block { start, end, used: f64 }`. `points` ordenados.
   - `fn calibrate(conn, plan_id: &str, window: WindowName, percent: f64, now) -> Result<f64>` (devuelve el nuevo límite); `percent` en (0, 100].
+  - `core/agy_usage.rs`: `fn parse_agy_usage(json: &str) -> Result<Vec<AgyBucket>>`, `AgyBucket { plan_id, window: WindowName, remaining_fraction: f64, resets_at: Option<DateTime<Utc>> }`; `fn apply_agy_usage(conn, buckets: &[AgyBucket], now) -> Result<usize>` (llama a `calibrate` con `source = agy`; formato en `06` §1.4).
   - `fn window_status(conn, plan_id: &str, now) -> Result<Vec<WindowStatus>>`; `WindowStatus { name, used, limit: Option<f64>, percent: Option<f64>, resetsAt: Option<DateTime<Utc>>, exhaustsAt: Option<DateTime<Utc>>, unpricedEvents: u64 }`.
 
 - [ ] **Paso 1: pruebas que fallan**
@@ -400,6 +401,11 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 #[test] fn calibracion_calcula_limite() { /* usado 3.0, 40 % → límite 7.5; segunda calibración 8.5 → media 8.0 */ }
 #[test] fn calibracion_rechaza_porcentaje_invalido() { /* 0 y 120 → error */ }
 #[test] fn sin_calibrar_no_hay_porcentaje() { /* percent None, limit None */ }
+#[test] fn agy_usage_se_interpreta() { /* fixture agy/usage.json → 4 buckets: gemini-5h y gemini-weekly → google-ai-pro; 3p-5h y 3p-weekly → google-ai-pro-claude; reset 1970-01-01 → None */ }
+#[test] fn agy_usage_calibra() { /* used 3.0 en la ventana 5h y remaining_fraction 0.6 → calibración source agy, 40 %, límite 7.5, resets_at oficial */ }
+#[test] fn agy_usage_sin_uso_no_calibra() { /* remaining_fraction 1 o used 0 → ninguna fila nueva */ }
+#[test] fn agy_usa_las_ultimas_8() { /* 10 calibraciones agy → el límite es la media de las 8 más recientes */ }
+#[test] fn agy_usage_malformado() { /* JSON sin command.data.groups → Err(Parse), sin tocar la BD */ }
 #[test] fn ritmo_estima_agotamiento() { /* límite 8, usado 6, 1 $ en los últimos 30 min → exhaustsAt = now + 1 h, solo si es antes del fin del bloque */ }
 ```
 
@@ -435,7 +441,7 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 **Peso:** L · **Razonamiento:** alto · **Agente:** `implementador-nucleo`
 
 **Archivos:**
-- Crear: `app/mod.rs`, `app/state.rs`, `app/commands.rs`, `app/watcher.rs`, `app/tray.rs`, `app/notify.rs`
+- Crear: `app/mod.rs`, `app/state.rs`, `app/commands.rs`, `app/watcher.rs`, `app/tray.rs`, `app/notify.rs`, `app/agy.rs` (`AgyRunner`: ejecuta `agy` sin shell con tiempo límite; la ruta del ejecutable se inyecta para poder probarlo)
 - Prueba: `tests/commands.rs` (llama a las funciones de comando sin ventana, con `AppState` sobre `open_memory`)
 
 **Interfaces:**
@@ -448,6 +454,8 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 #[test] fn get_dashboard_devuelve_contrato() { /* serde_json del resultado tiene las claves de 04-comandos §2 */ }
 #[test] fn calibrate_plan_valida() { /* percent 150 → Err con message "El porcentaje debe estar entre 1 y 100" */ }
 #[test] fn rescan_devuelve_estadisticas() { /* con fixtures en un tempdir → newEvents > 0 */ }
+#[test] fn agy_se_ejecuta_sin_shell() { /* AgyRunner con un ejecutable falso que imprime el fixture → refresh_agy_usage calibra; args exactos ["-p","/usage","--output-format","json","--print-timeout","20s"] */ }
+#[test] fn agy_ausente_o_lento() { /* sin ejecutable → code "unavailable"; ejecutable que tarda 31 s → code "timeout" y proceso terminado */ }
 #[test] fn errores_como_texto_en_espanol() { /* un CoreError::Db llega como CommandError { code: "db", message } sin rutas absolutas */ }
 ```
 
@@ -509,6 +517,9 @@ test('desglose de sesión', /* clic en fila → getSessionDetail; tabla de llama
 ```ts
 test('plan sin calibrar no muestra porcentaje', /* "Sin calibrar" y botón "Calibrar" */);
 test('calibrar envía el porcentaje', /* escribir 40 → calibratePlan("claude-pro","5h",40) */);
+test('google en una tarjeta con dos grupos', /* planes google-ai-pro y google-ai-pro-claude → una tarjeta «Google AI Pro» con «Modelos Gemini» y «Modelos Claude y GPT», 4 barras */);
+test('actualizar llama a agy', /* clic en «Actualizar» → refreshAgyUsage(); calibratedBy agy hace 3 min → etiqueta «% oficial de agy» */);
+test('sin agy se calibra a mano', /* refreshAgyUsage → code unavailable → texto «Sin agy: calibra a mano en Antigravity › View Usage» */);
 test('recordatorio de uso no medido', /* texto de 05-ui §3 bajo las barras de suscripción */);
 test('editar precio muestra el recálculo', /* upsertPrice → "Recalculadas 120 llamadas: 4,10 $ → 5,30 $" */);
 test('la clave de DeepSeek no se muestra', /* tras guardar, el campo muestra "Guardada" y nunca el valor */);

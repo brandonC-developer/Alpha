@@ -21,6 +21,7 @@ flowchart LR
     CMD --> WN["Notificaciones y bandeja de Windows"]
   end
   CORE -. "GET /user/balance (si hay clave)" .-> DS["api.deepseek.com"]
+  APP -. "agy -p /usage (cada 15 min, sin shell)" .-> AGY["agy.exe"]
 ```
 
 | Módulo | Archivo | Responsabilidad | Depende de |
@@ -183,7 +184,9 @@ CREATE TABLE plan_calibration (
   at       TEXT NOT NULL,
   percent  REAL NOT NULL CHECK (percent > 0 AND percent <= 100),
   used     REAL NOT NULL,
-  limit_est REAL NOT NULL
+  limit_est REAL NOT NULL,
+  source   TEXT NOT NULL DEFAULT 'user' CHECK (source IN ('user','agy')),
+  resets_at TEXT                              -- solo source = 'agy': reinicio oficial de la ventana
 );
 
 CREATE TABLE alert_fired (
@@ -222,5 +225,6 @@ CREATE TABLE setting (
 | ADR-2 | Coste guardado por evento | Consultas rápidas y trazabilidad del precio usado | Calcular al consultar |
 | ADR-3 | `hourly_agg` mantenido en la ingesta | Panel de 90 días < 300 ms | Vistas calculadas al vuelo |
 | ADR-4 | `core` sin Tauri | Pruebas sin ventana, reutilizable en una CLI | Todo en comandos |
+| ADR-6 | Google AI Pro se calibra solo con `agy -p "/usage" --output-format json` (decisión del usuario, 27/11/2026) | Da el % oficial y el reinicio de cada ventana, gasta 0 tokens y tarda unos 3 s | Calibrar Google a mano |
 | ADR-5 | Límites calibrados por el usuario | Los proveedores no publican límites en tokens | Valores fijos inventados |
 | ADR-6 | NSIS por usuario | Sin permisos de administrador | MSI |

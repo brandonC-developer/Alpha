@@ -254,6 +254,7 @@ cost_usd = ( input       × price.input
 ### 8.9 Privacidad y seguridad
 
 - Solo lectura sobre las carpetas de las herramientas; nunca las escribe.
+- Un solo proceso externo: `agy -p "/usage" --output-format json` cada 15 min para calibrar Google AI Pro (ADR-6, decisión del usuario del 27/11/2026); se puede desactivar en Ajustes.
 - Ninguna conexión de red salvo `api.deepseek.com` (si hay clave) y la comprobación de actualizaciones (desactivable).
 - Clave de DeepSeek en el Administrador de credenciales de Windows.
 - CSP estricta en la interfaz; permisos (capabilities) de Tauri mínimos: sin acceso al sistema de archivos desde JavaScript; toda lectura la hace Rust.

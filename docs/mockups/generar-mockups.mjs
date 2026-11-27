@@ -55,7 +55,7 @@ const nav = (active) => `
   <div class="nav-foot">
     <div class="mini"><span>Claude Pro · 5 h</span><b>62 %</b></div>
     <div class="minibar"><i style="width:62%"></i></div>
-    <div class="mini"><span>Google AI Pro · 5 h</span><b class="t-warn">81 %</b></div>
+    <div class="mini"><span>Google · Gemini 5 h</span><b class="t-warn">81 %</b></div>
     <div class="minibar warn"><i style="width:81%"></i></div>
     <p class="faint">Actualizado hace 4 s</p>
   </div>
@@ -257,10 +257,21 @@ const planes = page('Planes', 'Planes', `
   </article>
   <article class="card plan alert">
     <header class="sec"><h2><i class="dot p-google"></i>Google AI Pro</h2><span class="muted small">cuota sin confirmar · Antigravity</span></header>
-    <div class="win"><div class="winhead"><b>Ventana de 5 h</b><span class="t-warn"><b>81 %</b> · se agota ~14:20</span></div>${wbar(81, 'warn')}<p class="small muted">Reinicia 16:40 · 412 llamadas sin precio no cuentan</p></div>
-    <div class="win"><div class="winhead"><b>Semanal</b><span class="muted">Sin calibrar</span></div><div class="bar off"><i style="width:0"></i></div><p class="small muted">Sin calibrar: se muestra el consumo, pero no el porcentaje · 423 M tokens esta semana</p></div>
+    <p class="small muted calib"><span class="tag ok">% oficial de agy</span> actualizado hace 3 min</p>
+    <!-- grupo: google-ai-pro -->
+    <section class="grp" aria-label="Modelos Gemini">
+      <h3>Modelos Gemini<span class="muted small">Neon, Hydrogen, Carbon, Orchestrator, 3.8 Flash</span></h3>
+      <div class="win"><div class="winhead"><b>Ventana de 5 h</b><span class="t-warn"><b>81 %</b> · se agota ~13:40</span></div>${wbar(81, 'warn')}<p class="small muted">Reinicia 14:02 · el ritmo no cuenta 412 llamadas sin precio</p></div>
+      <div class="win"><div class="winhead"><b>Semanal</b><span><b>27 %</b></span></div>${wbar(27)}<p class="small muted">Reinicia el jueves 03/12 a las 08:25</p></div>
+    </section>
+    <!-- grupo: google-ai-pro-claude -->
+    <section class="grp" aria-label="Modelos Claude y GPT">
+      <h3>Modelos Claude y GPT<span class="muted small">Claude Opus 5.5 y Sonnet 5.5 en Antigravity</span></h3>
+      <div class="win"><div class="winhead"><b>Ventana de 5 h</b><span class="muted">Sin uso en esta ventana</span></div>${wbar(0)}<p class="small muted">Se abre con tu primera llamada a un modelo Claude</p></div>
+      <div class="win"><div class="winhead"><b>Semanal</b><span><b>50 %</b></span></div>${wbar(50)}<p class="small muted">Reinicia el jueves 03/12 a las 16:40</p></div>
+    </section>
     <p class="notice small">No incluye lo que uses en la web o la app móvil (claude.ai, Gemini), que comparten este límite</p>
-    <footer class="actions"><button class="btn">Calibrar</button><button class="btn ghost">Editar cuota</button></footer>
+    <footer class="actions"><button class="btn">Actualizar</button><button class="btn ghost">Calibrar a mano</button><button class="btn ghost">Editar cuota</button></footer>
   </article>
   <article class="card plan">
     <header class="sec"><h2><i class="dot p-deepseek"></i>DeepSeek</h2><span class="muted small">pago por uso · opencode</span></header>
@@ -363,12 +374,12 @@ const bandeja = `<!doctype html>
 <div class="traymenu" role="menu">
   <div class="ti strong">Hoy: 4,2 M tokens · 1,84 $ equiv.</div><hr>
   <div class="ti"><span>Claude Pro (5 h)</span><span>62 % · reinicia 15:10</span></div>
-  <div class="ti t-warn"><span>Google AI Pro (5 h)</span><span>81 % · se agota ~14:20</span></div>
+  <div class="ti t-warn"><span>Google · Gemini (5 h)</span><span>81 % · se agota ~13:40</span></div>
   <div class="ti"><span>DeepSeek</span><span>8,42 $ de saldo</span></div><hr>
   <div class="ti act">Abrir panel</div><div class="ti act">Reescanear</div><div class="ti act">Pausar avisos 1 h</div><hr>
   <div class="ti act">Salir</div>
 </div>
-<div class="toast"><b>Google AI Pro: 80 % de la ventana de 5 h</b><span>Se reinicia a las 16:40. A este ritmo se agota a las 14:20.</span></div>
+<div class="toast"><b>Google AI Pro · Gemini: 80 % de la ventana de 5 h</b><span>Se reinicia a las 14:02. A este ritmo se agota a las 13:40.</span></div>
 </body></html>`;
 
 // ---------- índice ----------
