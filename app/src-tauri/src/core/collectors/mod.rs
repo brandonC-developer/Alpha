@@ -1,3 +1,4 @@
+pub mod antigravity;
 pub mod claude_code;
 
 use std::path::{Path, PathBuf};
