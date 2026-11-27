@@ -24,18 +24,27 @@ pub fn open_memory() -> Result<Connection> {
     init_connection(conn)
 }
 
-fn init_connection(mut conn: Connection) -> Result<Connection> {
-    conn.execute_batch("PRAGMA journal_mode = WAL;\nPRAGMA foreign_keys = ON;")?;
+fn init_connection(conn: Connection) -> Result<Connection> {
+    init_connection_with(conn, seed_plans)
+}
+
+fn init_connection_with<F>(mut conn: Connection, seed: F) -> Result<Connection>
+where
+    F: FnOnce(&Connection) -> Result<()>,
+{
+    conn.execute_batch(
+        "PRAGMA busy_timeout = 5000;\nPRAGMA journal_mode = WAL;\nPRAGMA foreign_keys = ON;",
+    )?;
 
     let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if version == 0 {
-        conn.execute_batch(SCHEMA_SQL)?;
         let tx = conn.transaction()?;
-        seed_plans(&tx)?;
+        tx.execute_batch(SCHEMA_SQL)?;
+        seed(&tx)?;
         tx.pragma_update(None, "user_version", 1)?;
         tx.commit()?;
     } else {
-        seed_plans(&conn)?;
+        seed(&conn)?;
     }
 
     Ok(conn)
@@ -107,4 +116,53 @@ fn seed_plans(conn: &Connection) -> Result<()> {
         ])?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::CoreError;
+
+    #[test]
+    fn fallo_en_siembra_deja_bd_vacia_y_reapertura_funciona() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("gestor.db");
+
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            let err = init_connection_with(conn, |_tx| {
+                Err(CoreError::Secret("fallo simulado en siembra".to_string()))
+            })
+            .unwrap_err();
+            assert!(matches!(err, CoreError::Secret(_)));
+        }
+
+        {
+            let check = Connection::open(&db_path).unwrap();
+            let version: i64 = check
+                .query_row("PRAGMA user_version", [], |row| row.get(0))
+                .unwrap();
+            assert_eq!(version, 0);
+
+            let table_count: i64 = check
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(table_count, 0);
+        }
+
+        let reopened = open_db(&db_path).unwrap();
+        let version: i64 = reopened
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 1);
+
+        let plan_count: i64 = reopened
+            .query_row("SELECT COUNT(*) FROM plan", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(plan_count, 4);
+    }
 }

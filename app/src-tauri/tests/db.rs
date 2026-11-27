@@ -1,7 +1,7 @@
-use chrono::{FixedOffset, NaiveDate};
+use chrono::{DateTime, FixedOffset, NaiveDate, Utc};
 use gestor_core::db::{open_db, open_memory};
 use gestor_core::model::{Provider, Tool, UsageEvent, plan_for, provider_for};
-use gestor_core::time::{hours_between, local_date};
+use gestor_core::time::{fmt_utc, hours_between, local_date};
 
 #[test]
 fn esquema_se_aplica_una_vez() {
@@ -222,7 +222,7 @@ fn dedup_key_es_unica() {
                 ev.provider.as_str(),
                 plan_for(ev.tool, ev.provider),
                 ev.model,
-                ev.ts_utc.to_rfc3339(),
+                fmt_utc(ev.ts_utc),
                 ev.session_id,
                 ev.project,
                 ev.input,
@@ -277,4 +277,29 @@ fn dia_local_de_un_instante_utc() {
     let a = "2026-11-27T00:00:00Z".parse().unwrap();
     let b = "2026-11-27T05:30:00Z".parse().unwrap();
     assert!((hours_between(a, b) - 5.5).abs() < 1e-9);
+}
+
+#[test]
+fn fmt_utc_termina_en_z() {
+    let ts: DateTime<Utc> = "2026-11-27T03:30:00Z".parse().unwrap();
+    let formatted = fmt_utc(ts);
+    assert_eq!(formatted, "2026-11-27T03:30:00Z");
+    assert!(formatted.ends_with('Z'));
+}
+
+#[test]
+fn busy_timeout_configurado() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("gestor.db");
+    let conn = open_db(&db_path).unwrap();
+    let timeout: i64 = conn
+        .query_row("PRAGMA busy_timeout", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(timeout, 5000);
+
+    let mem = open_memory().unwrap();
+    let mem_timeout: i64 = mem
+        .query_row("PRAGMA busy_timeout", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(mem_timeout, 5000);
 }

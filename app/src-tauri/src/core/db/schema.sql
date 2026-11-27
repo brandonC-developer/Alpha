@@ -1,5 +1,3 @@
-PRAGMA journal_mode = WAL;
-
 CREATE TABLE usage_event (
   dedup_key        TEXT PRIMARY KEY,
   tool             TEXT NOT NULL CHECK (tool IN ('claude-code','antigravity','opencode')),
