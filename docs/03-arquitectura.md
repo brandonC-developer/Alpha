@@ -170,7 +170,7 @@ CREATE TABLE price (
   source_url    TEXT NOT NULL,
   approximate   INTEGER NOT NULL DEFAULT 0,
   user_edited   INTEGER NOT NULL DEFAULT 0,
-  UNIQUE (model_pattern, valid_from)
+  UNIQUE (provider, model_pattern, valid_from)
 );
 
 CREATE TABLE cost_recalc_log (

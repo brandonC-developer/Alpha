@@ -2,6 +2,7 @@
 
 | Fecha | Documento | Cambio | Afecta a |
 | --- | --- | --- | --- |
+| 2026-11-27 | `02` §2 y §4.3 | Por la cuota: el `verificador` de las puertas pasa a opencode (gratuito) desde la fase 4, y T11 y T12 pasan a opencode si a Gemini le queda menos del 25 % semanal o del 15 % de 5 h. T10 y T14 se quedan siempre en Gemini. Decisión del usuario | Fases 4–7 |
 | 2026-11-27 | `03` §3 (variantes de `session_hour`), `04` (Filter y `byProject`), `06` §3.1 y §3.2 | Decisiones tras las revisiones de la fase 3: el filtro se redondea a horas UTC; `byProject` usa `null` cuando no hay precio; `session_hour` guarda cuatro variantes por proveedor y proyecto. Precios oficiales de Claude Haiku 5.5 y Fable 5.2, y Sonnet 5.5 confirmado. El precio se elige por la fecha UTC | T6, T7, T12 |
 | 2026-11-27 | `03` §3, plan T2 | **Nueva tabla `session_hour`** para que el Panel cumpla los 300 ms: con 1 M de eventos tardaba 874 ms en release. Da las sesiones, el tiempo activo y la concurrencia exactos de la spec §8.3 sin recorrer `usage_event`. Se recalcula en la ingesta por cada pareja de sesión y hora que se toca. Errata del plan en T6: `0.163666` | T2, T5, T7 |
 | 2026-11-27 | `06` §3.1 y §3.2 | **Precios de Gemini 4** de la página oficial de la API: Hydrogen 1,50/7,50, Neon 3/15, Carbon y Argon 2/10 hasta el 30/11 y 4/20 desde el 1/12, 3.8 Flash 0,75/3,75 hasta el 31/12. La salida incluye el razonamiento. El Orchestrator usa el precio de su modelo base (aproximado). Antigravity deja de salir casi todo como «sin precio» | T6, T12 |

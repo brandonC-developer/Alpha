@@ -55,7 +55,7 @@ Un subagente de Antigravity no puede usar Claude (§4.1), pero una sesión de `a
 | T14 opencode y DeepSeek | M | Silencioso (secretos) | Antigravity `implementador-nucleo` | Hydrogen | High | XHigh → `handoff/` | revisor |
 | T15 Exportar e importar | S | Visible | **opencode** `implementador` | DeepSeek V4.1 Flash | `low` | `high`; si vuelve a fallar, Antigravity `implementador-nucleo` | revisor |
 | T16 Entrega | M | Visible | Antigravity `implementador-nucleo` + usuario | Hydrogen | High | XHigh | Carbon + usuario |
-| Puertas (pruebas) | — | — | Antigravity `verificador` · o opencode `verificador` si falta cuota de Gemini | Hydrogen · DeepSeek V4.1 Flash | High (`flash`; no hay Medium para subagentes, §4.1) · `low` | — | — |
+| Puertas (pruebas) | — | — | **opencode `verificador`** (desde la fase 4, decisión del usuario del 27/11/2026: ejecutar pruebas no necesita un modelo potente y así no se gasta cuota de Gemini) · Antigravity `verificador` si opencode no está disponible | DeepSeek V4.1 Flash gratuito · Hydrogen | `low` · Medium | — | — |
 
 Por qué T13 y T15 van a opencode: son las tareas de error visible que el plan permite hacer en paralelo (T12 ∥ T13) o que son pequeñas y están bien cubiertas por pruebas (T15). Ninguna toca tokens, dinero, límites ni secretos.
 
@@ -116,11 +116,13 @@ Claude Code lanza cada tarea con `agy` (la CLI de Antigravity, v1.5.18) o con `o
 | --- | --- | --- | --- |
 | `implementador-nucleo` | `gemini-4-hydrogen-high` | `gemini-4-hydrogen-xhigh` | «Lee y sigue `.agents/agents/implementador-nucleo.md` y la skill `ejecutar-tarea-tdd`. Ejecuta Tn. Al terminar escribe `handoff/Tn-resultado.md`» |
 | `implementador-ui` (T11, T12) | `gemini-4-hydrogen-high` | `gemini-4-hydrogen-xhigh` | Igual, con su ficha y `mockup-a-react` |
-| `verificador` | `gemini-4-hydrogen-medium` | — | «Sigue `.agents/agents/verificador.md`: comprueba la puerta N» |
+| `verificador` | **opencode**: `opencode run --agent verificador "Comprueba la puerta N"` (gratuito, `low`). Si falla, `gemini-4-hydrogen-medium` | — | «Sigue `.agents/agents/verificador.md`: comprueba la puerta N» |
 | `revisor` | **`claude-sonnet-5-5-high`** (otra familia, §3.5) | — | «Sigue `.agents/agents/revisor.md`: revisa la fase N» |
 | Puertas 3 y 7 | `gemini-4-carbon-high` y `claude-opus-5-5-high` | — | Los de `01-fases.md` |
 | `qa-app` | Se queda en la app de Antigravity (usa el navegador integrado) | — | — |
 | T13, T15 (opencode) | `opencode run --agent implementador "Ejecuta Tn"` | `--variant high` | §5.2 |
+
+**Reserva para T11 y T12 si falta cuota de Gemini** (decisión del usuario, 27/11/2026). Antes de lanzar T11 o T12, Claude consulta `/usage`. Si a la ventana semanal de Gemini le queda menos del 25 %, o a la de 5 h menos del 15 %, la tarea pasa a opencode `implementador` con la misma escalera que T13 (`low` → `high` → de vuelta a Antigravity). Son tareas de error visible: las atrapan las pruebas y la comparación con los mockups. T10 y T14 (tokens, dinero, límites, secretos) no pasan nunca a opencode.
 
 **Plantilla** (Claude la ejecuta en `E:\Proyectos\Gestior de Tokens\Alpha`):
 
