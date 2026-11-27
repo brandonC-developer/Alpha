@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Timelike, Utc};
 use rusqlite::types::Value;
-use rusqlite::{Connection, OptionalExtension, params_from_iter};
+use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Default)]
@@ -887,8 +887,11 @@ pub fn sessions(conn: &Connection, f: &Filter) -> Result<Vec<SessionRow>> {
     tools_present.dedup();
 
     let mut anomaly_map: HashMap<(Tool, String), bool> = HashMap::new();
+    let anomaly_cutoff =
+        f.to.checked_sub_signed(Duration::seconds(1))
+            .unwrap_or(f.to);
     for tool in tools_present {
-        compute_anomalies_for_tool(conn, tool, &mut anomaly_map)?;
+        compute_anomalies_for_tool(conn, tool, anomaly_cutoff, &mut anomaly_map)?;
     }
 
     let mut result: Vec<SessionRow> = grouped
@@ -1957,7 +1960,7 @@ fn parse_session_hour_times(
     last_bytes: &[u8],
     cached_hour: &mut ([u8; 13], i64),
 ) -> Result<(i64, i64, i64)> {
-    if hour_bytes.len() >= 13 {
+    if hour_bytes.len() == 20 && hour_bytes[19] == b'Z' {
         let hkey: [u8; 13] = hour_bytes[..13].try_into().unwrap();
         let hep = if hkey == cached_hour.0 {
             cached_hour.1
@@ -1966,21 +1969,21 @@ fn parse_session_hour_times(
             *cached_hour = (hkey, ep);
             ep
         };
-        let fep = if first_bytes.len() >= 19 && first_bytes[..13] == hkey {
-            if let Some(off) = fast_min_sec(first_bytes) {
-                hep + off
-            } else {
-                fast_epoch_secs(first_bytes)?
-            }
+        let fep = if first_bytes.len() == 20
+            && first_bytes[19] == b'Z'
+            && first_bytes[..13] == hkey
+            && let Some(off) = fast_min_sec(first_bytes)
+        {
+            hep + off
         } else {
             fast_epoch_secs(first_bytes)?
         };
-        let lep = if last_bytes.len() >= 19 && last_bytes[..13] == hkey {
-            if let Some(off) = fast_min_sec(last_bytes) {
-                hep + off
-            } else {
-                fast_epoch_secs(last_bytes)?
-            }
+        let lep = if last_bytes.len() == 20
+            && last_bytes[19] == b'Z'
+            && last_bytes[..13] == hkey
+            && let Some(off) = fast_min_sec(last_bytes)
+        {
+            hep + off
         } else {
             fast_epoch_secs(last_bytes)?
         };
@@ -2035,7 +2038,8 @@ fn col_f64(row: &rusqlite::Row<'_>, idx: usize) -> Result<f64> {
 }
 
 fn fast_epoch_secs(b: &[u8]) -> Result<i64> {
-    if b.len() >= 19
+    if b.len() == 20
+        && b[19] == b'Z'
         && b[4] == b'-'
         && b[7] == b'-'
         && b[10] == b'T'
@@ -2267,17 +2271,7 @@ fn compute_month_metrics<Tz: TimeZone>(
 
     let deepseek_budget = match budget_opt {
         Some(budget_usd) => {
-            let ds_spent: f64 = if month_start_utc < now {
-                conn.query_row(
-                    "SELECT COALESCE(SUM(cost_real), 0.0)
-                     FROM hourly_agg
-                     WHERE hour_utc >= ?1 AND hour_utc < ?2 AND plan_id = 'deepseek'",
-                    [&fmt_utc(month_filter.from), &fmt_utc(month_filter.to)],
-                    |r| r.get(0),
-                )?
-            } else {
-                0.0
-            };
+            let ds_spent = payg_month_spent(conn, "deepseek", month_start_utc, now)?;
             let balance_usd: Option<f64> = conn
                 .query_row(
                     "SELECT value FROM setting WHERE key = 'deepseek.balance_usd'",
@@ -2322,12 +2316,42 @@ fn accumulate_session_cost(
     }
 }
 
+pub(crate) struct AnomalySession {
+    pub session_id: String,
+    pub tool: Tool,
+    pub start: DateTime<Utc>,
+    pub total_tokens: u64,
+    pub mean: f64,
+}
+
+pub(crate) fn payg_month_spent(
+    conn: &Connection,
+    plan_id: &str,
+    month_start: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> Result<f64> {
+    if month_start > now {
+        return Ok(0.0);
+    }
+    Ok(conn.query_row(
+        "SELECT COALESCE(SUM(cost_usd), 0.0)
+         FROM usage_event
+         WHERE plan_id = ?1
+           AND cost_kind = 'real'
+           AND ts_utc >= ?2
+           AND ts_utc <= ?3",
+        params![plan_id, &fmt_utc(month_start), &fmt_utc(now)],
+        |r| r.get(0),
+    )?)
+}
+
 fn compute_anomalies_for_tool(
     conn: &Connection,
     tool: Tool,
+    now: DateTime<Utc>,
     out: &mut HashMap<(Tool, String), bool>,
 ) -> Result<()> {
-    for (session_id, (anomalous, _)) in compute_tool_anomalies(conn, tool)? {
+    for (session_id, (anomalous, _)) in compute_tool_anomalies(conn, tool, now)? {
         out.insert((tool, session_id), anomalous);
     }
     Ok(())
@@ -2336,44 +2360,97 @@ fn compute_anomalies_for_tool(
 pub(crate) fn compute_tool_anomalies(
     conn: &Connection,
     tool: Tool,
+    now: DateTime<Utc>,
 ) -> Result<HashMap<String, (bool, f64)>> {
+    let now_str = fmt_utc(now);
     let mut stmt = conn.prepare(
         "SELECT session_id, MAX(ts_utc) AS end_ts, SUM(input + cache_write + cache_read + output)
          FROM usage_event
-         WHERE tool = ?1
+         WHERE tool = ?1 AND ts_utc <= ?2
          GROUP BY session_id
          ORDER BY end_ts ASC, session_id ASC",
     )?;
     let list: Vec<(String, u64)> = stmt
-        .query_map([tool.as_str()], |r| {
+        .query_map(params![tool.as_str(), &now_str], |r| {
             Ok((r.get::<_, String>(0)?, r.get::<_, i64>(2)?.max(0) as u64))
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
 
     let mut out = HashMap::with_capacity(list.len());
     for (idx, (session_id, total_tokens)) in list.iter().enumerate() {
-        let hist_start = idx.saturating_sub(30);
-        let history = &list[hist_start..idx];
-        let (anomalous, mean) = if history.len() >= 10 {
-            let n = history.len() as f64;
-            let mean = history.iter().map(|(_, t)| *t as f64).sum::<f64>() / n;
-            let variance = history
-                .iter()
-                .map(|(_, t)| {
-                    let diff = *t as f64 - mean;
-                    diff * diff
-                })
-                .sum::<f64>()
-                / n;
-            let stddev = variance.sqrt();
-            ((*total_tokens as f64) > (mean + 3.0 * stddev), mean)
-        } else {
-            (false, 0.0)
-        };
+        let (anomalous, mean) = is_session_anomalous(&list[..idx], *total_tokens);
         out.insert(session_id.clone(), (anomalous, mean));
     }
 
     Ok(out)
+}
+
+pub(crate) fn compute_anomalous_sessions(
+    conn: &Connection,
+    now: DateTime<Utc>,
+) -> Result<Vec<AnomalySession>> {
+    let now_str = fmt_utc(now);
+    let mut stmt = conn.prepare(
+        "SELECT tool, session_id, MIN(ts_utc) AS start_ts, MAX(ts_utc) AS end_ts,
+                SUM(input + cache_write + cache_read + output)
+         FROM usage_event
+         WHERE ts_utc <= ?1
+         GROUP BY tool, session_id
+         ORDER BY tool ASC, end_ts ASC, session_id ASC",
+    )?;
+    let mut rows = stmt.query([&now_str])?;
+
+    let mut anomalous_out = Vec::new();
+    let mut current_tool: Option<Tool> = None;
+    let mut history: Vec<(String, u64)> = Vec::new();
+
+    while let Some(r) = rows.next()? {
+        let tool: Tool = r.get::<_, String>(0)?.parse()?;
+        let session_id: String = r.get(1)?;
+        let start_str: String = r.get(2)?;
+        let total_tokens = r.get::<_, i64>(4)?.max(0) as u64;
+
+        if current_tool != Some(tool) {
+            current_tool = Some(tool);
+            history.clear();
+        }
+
+        let (anomalous, mean) = is_session_anomalous(&history, total_tokens);
+        if anomalous {
+            let start = parse_utc(&start_str, "usage_event")?;
+            anomalous_out.push(AnomalySession {
+                session_id: session_id.clone(),
+                tool,
+                start,
+                total_tokens,
+                mean,
+            });
+        }
+        history.push((session_id, total_tokens));
+    }
+
+    Ok(anomalous_out)
+}
+
+fn is_session_anomalous(prior: &[(String, u64)], total_tokens: u64) -> (bool, f64) {
+    let hist_start = prior.len().saturating_sub(30);
+    let history = &prior[hist_start..];
+    if history.len() >= 10 {
+        let n = history.len() as f64;
+        let mean = history.iter().map(|(_, t)| *t as f64).sum::<f64>() / n;
+        let variance = history
+            .iter()
+            .map(|(_, t)| {
+                let diff = *t as f64 - mean;
+                diff * diff
+            })
+            .sum::<f64>()
+            / n;
+        let stddev = variance.sqrt();
+        ((total_tokens as f64) > (mean + 3.0 * stddev), mean)
+    } else {
+        (false, 0.0)
+    }
 }
 
 fn parse_utc(s: &str, context: &str) -> Result<DateTime<Utc>> {
@@ -2382,4 +2459,20 @@ fn parse_utc(s: &str, context: &str) -> Result<DateTime<Utc>> {
         line: 0,
         reason: format!("fecha UTC inválida '{s}': {err}"),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fast_epoch_secs_rechaza_offset_no_z() {
+        let ep_offset = fast_epoch_secs(b"2026-11-26T15:00:00+02:00").unwrap();
+        let expected: DateTime<Utc> = "2026-11-26T13:00:00Z".parse().unwrap();
+        assert_eq!(ep_offset, expected.timestamp());
+
+        let ep_z = fast_epoch_secs(b"2026-11-26T15:00:00Z").unwrap();
+        let expected_z: DateTime<Utc> = "2026-11-26T15:00:00Z".parse().unwrap();
+        assert_eq!(ep_z, expected_z.timestamp());
+    }
 }

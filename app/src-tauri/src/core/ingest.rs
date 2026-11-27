@@ -37,7 +37,7 @@ impl IngestStats {
 
 /// Gancho para calcular el coste de un evento recién insertado (conectado en T6).
 pub trait CostHook {
-    fn apply(&self, conn: &Connection, dedup_key: &str) -> Result<()>;
+    fn apply(&self, conn: &Connection, dedup_key: &str, now: DateTime<Utc>) -> Result<()>;
 }
 
 /// Implementación por defecto que aplica el coste calculado desde la tabla de precios.
@@ -45,8 +45,8 @@ pub trait CostHook {
 pub struct ApplyCostHook;
 
 impl CostHook for ApplyCostHook {
-    fn apply(&self, conn: &Connection, dedup_key: &str) -> Result<()> {
-        crate::cost::apply_cost(conn, dedup_key)
+    fn apply(&self, conn: &Connection, dedup_key: &str, now: DateTime<Utc>) -> Result<()> {
+        crate::cost::apply_cost(conn, dedup_key, now)
     }
 }
 
@@ -55,7 +55,7 @@ impl CostHook for ApplyCostHook {
 pub struct NoopCostHook;
 
 impl CostHook for NoopCostHook {
-    fn apply(&self, _conn: &Connection, _dedup_key: &str) -> Result<()> {
+    fn apply(&self, _conn: &Connection, _dedup_key: &str, _now: DateTime<Utc>) -> Result<()> {
         Ok(())
     }
 }
@@ -201,7 +201,7 @@ pub fn ingest_file_with_cost(
             }
 
             new_events += 1;
-            cost_hook.apply(&tx, &ev.dedup_key)?;
+            cost_hook.apply(&tx, &ev.dedup_key, now)?;
 
             let (cost_usd, cost_kind): (Option<f64>, String) =
                 cost_lookup_stmt.query_row([&ev.dedup_key], |r| Ok((r.get(0)?, r.get(1)?)))?;

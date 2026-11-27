@@ -95,18 +95,23 @@ pub fn seed_prices(conn: &Connection) -> Result<usize> {
     Ok(count)
 }
 
-/// Busca el precio vigente para `model` en la fecha `at`; gana el patrón `globset` más largo.
-pub fn find_price(conn: &Connection, model: &str, at: NaiveDate) -> Result<Option<Price>> {
+/// Busca el precio vigente para `provider` y `model` en la fecha `at`; gana el patrón `globset` más largo.
+pub fn find_price(
+    conn: &Connection,
+    provider: Provider,
+    model: &str,
+    at: NaiveDate,
+) -> Result<Option<Price>> {
     let date_str = at.format("%Y-%m-%d").to_string();
     let mut stmt = conn.prepare(
         "SELECT id, provider, model_pattern, valid_from, valid_to,
                 input, output, cache_write, cache_read,
                 source_url, approximate, user_edited
          FROM price
-         WHERE valid_from <= ?1 AND (valid_to IS NULL OR ?1 < valid_to)",
+         WHERE provider = ?1 AND valid_from <= ?2 AND (valid_to IS NULL OR ?2 < valid_to)",
     )?;
 
-    let rows = stmt.query_map([&date_str], row_to_price)?;
+    let rows = stmt.query_map(params![provider.as_str(), &date_str], row_to_price)?;
     let mut best: Option<Price> = None;
 
     for row in rows {

@@ -6,7 +6,7 @@ use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{CoreError, Result};
-use crate::model::UsageEvent;
+use crate::model::{Provider, UsageEvent};
 use crate::pricing::{Price, PriceInput, compile_pattern, find_price, refresh_valid_to};
 use crate::time::{fmt_utc, hour_utc_str};
 
@@ -82,8 +82,19 @@ fn compute_cost_tokens(
 }
 
 /// Calcula y guarda el coste del evento identificado por `dedup_key`.
-pub fn apply_cost(conn: &Connection, dedup_key: &str) -> Result<()> {
-    let (model, ts_utc_str, plan_id, input, cache_write, cache_read, output, plan_kind): (
+pub fn apply_cost(conn: &Connection, dedup_key: &str, now: DateTime<Utc>) -> Result<()> {
+    let (
+        provider_str,
+        model,
+        ts_utc_str,
+        plan_id,
+        input,
+        cache_write,
+        cache_read,
+        output,
+        plan_kind,
+    ): (
+        String,
         String,
         String,
         String,
@@ -93,7 +104,7 @@ pub fn apply_cost(conn: &Connection, dedup_key: &str) -> Result<()> {
         i64,
         String,
     ) = conn.query_row(
-        "SELECT e.model, e.ts_utc, e.plan_id, e.input, e.cache_write, e.cache_read, e.output, p.kind
+        "SELECT e.provider, e.model, e.ts_utc, e.plan_id, e.input, e.cache_write, e.cache_read, e.output, p.kind
          FROM usage_event e
          JOIN plan p ON p.id = e.plan_id
          WHERE e.dedup_key = ?1",
@@ -108,15 +119,17 @@ pub fn apply_cost(conn: &Connection, dedup_key: &str) -> Result<()> {
                 r.get(5)?,
                 r.get(6)?,
                 r.get(7)?,
+                r.get(8)?,
             ))
         },
     )?;
 
+    let provider: Provider = provider_str.parse()?;
     let ts = parse_utc(&ts_utc_str, "usage_event")?;
     let event_date = ts.date_naive();
-    let computed_at = fmt_utc(Utc::now());
+    let computed_at = fmt_utc(now);
 
-    let (cost_usd, cost_kind, price_id) = match find_price(conn, &model, event_date)? {
+    let (cost_usd, cost_kind, price_id) = match find_price(conn, provider, &model, event_date)? {
         Some(price) => {
             let cost = compute_cost_tokens(
                 input.max(0) as u64,
@@ -151,10 +164,15 @@ pub fn apply_cost(conn: &Connection, dedup_key: &str) -> Result<()> {
 }
 
 /// Crea o actualiza un precio (`user_edited = 1`), recalcula solo los eventos afectados y registra el log.
-pub fn upsert_price(conn: &mut Connection, p: PriceInput) -> Result<RecalcResult> {
+pub fn upsert_price(
+    conn: &mut Connection,
+    p: PriceInput,
+    now: DateTime<Utc>,
+) -> Result<RecalcResult> {
     let valid_from_str = p.valid_from.format("%Y-%m-%d").to_string();
+    let valid_from_ts = format!("{valid_from_str}T00:00:00Z");
     let matcher = compile_pattern(&p.model_pattern)?;
-    let now_str = fmt_utc(Utc::now());
+    let now_str = fmt_utc(now);
 
     let tx = conn.transaction()?;
 
@@ -229,9 +247,9 @@ pub fn upsert_price(conn: &mut Connection, p: PriceInput) -> Result<RecalcResult
                     e.cost_usd, e.cost_kind
              FROM usage_event e
              JOIN plan pl ON pl.id = e.plan_id
-             WHERE substr(e.ts_utc, 1, 10) >= ?1",
+             WHERE e.ts_utc >= ?1 AND e.provider = ?2",
         )?;
-        stmt.query_map([&valid_from_str], |r| {
+        stmt.query_map(params![&valid_from_ts, p.provider.as_str()], |r| {
             Ok(EventRow {
                 dedup_key: r.get(0)?,
                 tool: r.get(1)?,
@@ -279,7 +297,7 @@ pub fn upsert_price(conn: &mut Connection, p: PriceInput) -> Result<RecalcResult
         )?;
 
         for ev in candidates {
-            if !matcher.is_match(&ev.model) {
+            if ev.provider != p.provider.as_str() || !matcher.is_match(&ev.model) {
                 continue;
             }
             let ts = parse_utc(&ev.ts_utc, "usage_event")?;
@@ -288,7 +306,7 @@ pub fn upsert_price(conn: &mut Connection, p: PriceInput) -> Result<RecalcResult
                 continue;
             }
 
-            let Some(best_price) = find_price(&tx, &ev.model, ev_date)? else {
+            let Some(best_price) = find_price(&tx, p.provider, &ev.model, ev_date)? else {
                 continue;
             };
             if best_price.id != upserted_id {

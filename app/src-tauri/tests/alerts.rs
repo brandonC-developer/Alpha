@@ -424,3 +424,172 @@ fn semanal_y_95_y_umbrales_desde_setting() {
     assert_eq!(at, fmt_utc(now));
     let _ = params![""];
 }
+
+#[test]
+fn anomalias_ignoran_eventos_posteriores_a_now() {
+    let conn = open_memory().unwrap();
+    let base = utc("2026-11-01T00:00:00Z");
+
+    // 15 sesiones normales (~1 M tokens cada una) antes de 12:00Z
+    for i in 0..15 {
+        let delta = ((i % 3) as u64) * 50_000;
+        let ev = make_event(
+            &format!("ag:anom-now:{i}"),
+            Tool::Antigravity,
+            Provider::Google,
+            "gemini-4-neon-xhigh",
+            base + Duration::minutes(i * 30),
+            &format!("s-anom-norm-{i}"),
+            None,
+            900_000 + delta,
+            0,
+            0,
+            100_000,
+        );
+        insert_event(&conn, &ev);
+    }
+
+    // Evento futuro de 41,2 M tokens a las 14:00Z (después de now = 12:30Z)
+    let future_spike = make_event(
+        "ag:anom-now:future",
+        Tool::Antigravity,
+        Provider::Google,
+        "gemini-4-neon-xhigh",
+        utc("2026-11-01T14:00:00Z"),
+        "s-anom-future",
+        None,
+        40_000_000,
+        0,
+        0,
+        1_200_000,
+    );
+    insert_event(&conn, &future_spike);
+
+    // También una sesión iniciada a las 11:30Z con 1 M tokens y un evento futuro de 50 M a las 14:30Z
+    let partial_before = make_event(
+        "ag:anom-now:part1",
+        Tool::Antigravity,
+        Provider::Google,
+        "gemini-4-neon-xhigh",
+        utc("2026-11-01T11:30:00Z"),
+        "s-anom-split",
+        None,
+        900_000,
+        0,
+        0,
+        100_000,
+    );
+    let partial_after = make_event(
+        "ag:anom-now:part2",
+        Tool::Antigravity,
+        Provider::Google,
+        "gemini-4-neon-xhigh",
+        utc("2026-11-01T14:30:00Z"),
+        "s-anom-split",
+        None,
+        49_000_000,
+        0,
+        0,
+        1_000_000,
+    );
+    insert_event(&conn, &partial_before);
+    insert_event(&conn, &partial_after);
+
+    let at_1230 = utc("2026-11-01T12:30:00Z");
+    let alerts_before = evaluate_alerts_in_tz(&conn, at_1230, &Utc).unwrap();
+    assert!(
+        alerts_before.is_empty(),
+        "no debe disparar alertas por eventos posteriores a now: {alerts_before:?}"
+    );
+
+    let at_1500 = utc("2026-11-01T15:00:00Z");
+    let alerts_after = evaluate_alerts_in_tz(&conn, at_1500, &Utc).unwrap();
+    let keys: Vec<&str> = alerts_after.iter().map(|a| a.key.as_str()).collect();
+    assert!(keys.contains(&"s-anom-future"));
+    assert!(keys.contains(&"s-anom-split"));
+}
+
+#[test]
+fn gasto_mes_deepseek_coincide_entre_alerts_y_costs() {
+    let conn = open_memory().unwrap();
+    let now = utc("2026-11-27T19:00:00Z");
+
+    // Caso de Carbon (n.º 8): evento de 4,10 $ exactamente en now = 19:00:00Z (presupuesto 5 $)
+    let ev = make_event(
+        "oc:edge:1",
+        Tool::Opencode,
+        Provider::DeepSeek,
+        "deepseek-flash",
+        now,
+        "s-ds-edge",
+        None,
+        1_000,
+        0,
+        0,
+        1_000,
+    );
+    insert_event_with_cost(&conn, &ev, Some(4.10), CostKind::Real);
+
+    let alerts = evaluate_alerts_in_tz(&conn, now, &Utc).unwrap();
+    assert_eq!(alerts.len(), 1);
+    assert_eq!(alerts[0].rule, "budget.80");
+
+    let f = gestor_core::query::Filter {
+        from: utc("2026-11-01T00:00:00Z"),
+        to: now,
+        tool: None,
+        provider: None,
+        project: None,
+    };
+    let c = gestor_core::query::costs(&conn, &f, &Utc, now).unwrap();
+    let ds = c.deepseek_budget.unwrap();
+    assert!((ds.spent_usd - 4.10).abs() < 1e-9);
+
+    // Un segundo antes del evento (now = 18:59:59Z), ni alerts ni costs deben contarlo
+    let before = now - Duration::seconds(1);
+    let conn_before = open_memory().unwrap();
+    insert_event_with_cost(&conn_before, &ev, Some(4.10), CostKind::Real);
+    let alerts_before = evaluate_alerts_in_tz(&conn_before, before, &Utc).unwrap();
+    assert!(alerts_before.is_empty());
+    let c_before = gestor_core::query::costs(&conn_before, &f, &Utc, before).unwrap();
+    assert!((c_before.deepseek_budget.unwrap().spent_usd - 0.0).abs() < 1e-9);
+
+    // Zona horaria de desfase no entero (+05:30): 2026-11-01 00:00 +05:30 = 2026-10-31T18:30:00Z
+    let tz_530 = FixedOffset::east_opt(5 * 3600 + 1800).unwrap();
+    let conn_tz = open_memory().unwrap();
+    let ev_oct = make_event(
+        "oc:tz:oct",
+        Tool::Opencode,
+        Provider::DeepSeek,
+        "deepseek-flash",
+        utc("2026-10-31T18:10:00Z"),
+        "s-tz-oct",
+        None,
+        1_000,
+        0,
+        0,
+        1_000,
+    );
+    let ev_nov = make_event(
+        "oc:tz:nov",
+        Tool::Opencode,
+        Provider::DeepSeek,
+        "deepseek-flash",
+        utc("2026-10-31T18:40:00Z"),
+        "s-tz-nov",
+        None,
+        1_000,
+        0,
+        0,
+        1_000,
+    );
+    insert_event_with_cost(&conn_tz, &ev_oct, Some(3.0), CostKind::Real);
+    insert_event_with_cost(&conn_tz, &ev_nov, Some(4.2), CostKind::Real);
+
+    let now_tz = utc("2026-11-01T10:00:00Z");
+    let alerts_tz = evaluate_alerts_in_tz(&conn_tz, now_tz, &tz_530).unwrap();
+    assert_eq!(alerts_tz.len(), 1);
+    assert_eq!(alerts_tz[0].title, "DeepSeek: 4,20 $ de 5 $ este mes");
+    let c_tz = gestor_core::query::costs(&conn_tz, &f, &tz_530, now_tz).unwrap();
+    assert!((c_tz.deepseek_budget.unwrap().spent_usd - 4.20).abs() < 1e-9);
+}

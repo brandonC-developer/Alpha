@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
@@ -7,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{CoreError, Result};
 use crate::model::Tool;
 use crate::plans::{PlanKind, WindowName, active_5h_block_start, list_plans, window_status};
-use crate::query::{Filter, compute_tool_anomalies, sessions};
+use crate::query::{compute_anomalous_sessions, payg_month_spent};
 use crate::time::fmt_utc;
 
 /// Alerta evaluada lista para notificarse al usuario.
@@ -146,20 +144,7 @@ fn evaluate_plan_alerts<Tz: TimeZone>(
                 }
 
                 let month_start = local_month_start_utc(now, tz)?;
-                let spent_usd: f64 = if month_start <= now {
-                    conn.query_row(
-                        "SELECT COALESCE(SUM(cost_usd), 0.0)
-                         FROM usage_event
-                         WHERE plan_id = ?1
-                           AND cost_kind = 'real'
-                           AND ts_utc >= ?2
-                           AND ts_utc <= ?3",
-                        params![&plan.id, &fmt_utc(month_start), &fmt_utc(now)],
-                        |r| r.get(0),
-                    )?
-                } else {
-                    0.0
-                };
+                let spent_usd = payg_month_spent(conn, &plan.id, month_start, now)?;
 
                 if (spent_usd / budget_usd * 100.0) < level {
                     continue;
@@ -203,16 +188,7 @@ fn evaluate_anomaly_alerts(
     now: DateTime<Utc>,
     out: &mut Vec<Alert>,
 ) -> Result<()> {
-    let epoch = DateTime::<Utc>::from_timestamp(0, 0).unwrap_or(now);
-    let filter = Filter {
-        from: epoch,
-        to: now + Duration::seconds(1),
-        tool: None,
-        provider: None,
-        project: None,
-    };
-    let mut rows = sessions(conn, &filter)?;
-    rows.retain(|s| s.anomalous);
+    let mut rows = compute_anomalous_sessions(conn, now)?;
     if rows.is_empty() {
         return Ok(());
     }
@@ -223,22 +199,9 @@ fn evaluate_anomaly_alerts(
             .then_with(|| a.session_id.cmp(&b.session_id))
     });
 
-    let mut stats_by_tool: HashMap<Tool, HashMap<String, (bool, f64)>> = HashMap::new();
     for row in rows {
-        let tool_stats = match stats_by_tool.entry(row.tool) {
-            std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
-            std::collections::hash_map::Entry::Vacant(e) => {
-                e.insert(compute_tool_anomalies(conn, row.tool)?)
-            }
-        };
-        let mean = tool_stats
-            .get(&row.session_id)
-            .map(|(_, m)| *m)
-            .unwrap_or(0.0);
-        let total =
-            row.tokens.input + row.tokens.cache_write + row.tokens.cache_read + row.tokens.output;
-        let ratio = if mean > 0.0 {
-            ((total as f64) / mean).round().max(1.0) as u64
+        let ratio = if row.mean > 0.0 {
+            ((row.total_tokens as f64) / row.mean).round().max(1.0) as u64
         } else {
             1
         };
@@ -249,7 +212,7 @@ fn evaluate_anomaly_alerts(
             title: format!("Sesión fuera de lo normal en {}", tool_label(row.tool)),
             body: format!(
                 "{} tokens, {}× tu media. Ábrela en Sesiones.",
-                fmt_tokens_es(total),
+                fmt_tokens_es(row.total_tokens),
                 ratio
             ),
         });

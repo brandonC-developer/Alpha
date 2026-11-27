@@ -451,28 +451,39 @@ pub fn window_status(
         let official_reset = cal.latest_agy.and_then(|(agy_at, agy_reset)| {
             let age = now.signed_duration_since(agy_at);
             if age >= Duration::zero() && age < Duration::minutes(20) {
-                agy_reset
+                agy_reset.filter(|&reset| reset > now)
             } else {
                 None
             }
         });
         let resets_at = official_reset.or(measurement.app_resets_at);
 
+        let window_end = match spec.name {
+            WindowName::FiveHours => resets_at.or(measurement.app_resets_at),
+            WindowName::Weekly => {
+                resets_at.or_else(|| now.checked_add_signed(Duration::hours(168)))
+            }
+        };
+
         let exhausts_at = cal.limit.and_then(|lim| {
+            let end = window_end?;
             let remaining = lim - measurement.used;
-            if remaining <= 0.0 || measurement.recent_30m_used <= 0.0 {
+            if remaining <= 0.0 || measurement.recent_30m_used <= 0.0 || end <= now {
                 return None;
             }
             let secs = (remaining / measurement.recent_30m_used) * 1800.0;
-            if !secs.is_finite() || secs < 0.0 {
+            let max_ms = end.signed_duration_since(now).num_milliseconds();
+            let ms_f = (secs * 1000.0).round();
+            if !ms_f.is_finite()
+                || ms_f < 0.0
+                || max_ms <= 0
+                || ms_f >= max_ms as f64
+                || ms_f > (i64::MAX / 1_000_000) as f64
+            {
                 return None;
             }
-            let eta = now + Duration::milliseconds((secs * 1000.0).round() as i64);
-            if resets_at.is_none_or(|end| eta < end) {
-                Some(eta)
-            } else {
-                None
-            }
+            let eta = now.checked_add_signed(Duration::milliseconds(ms_f as i64))?;
+            (eta < end).then_some(eta)
         });
 
         statuses.push(WindowStatus {

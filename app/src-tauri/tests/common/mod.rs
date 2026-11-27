@@ -10,7 +10,7 @@ use rusqlite::{Connection, params};
 #[allow(dead_code)]
 pub fn insert_event(conn: &Connection, ev: &UsageEvent) {
     insert_raw_event(conn, ev);
-    apply_cost(conn, &ev.dedup_key).unwrap();
+    apply_cost(conn, &ev.dedup_key, ev.ts_utc).unwrap();
 
     let (cost_usd, cost_kind): (Option<f64>, String) = conn
         .query_row(

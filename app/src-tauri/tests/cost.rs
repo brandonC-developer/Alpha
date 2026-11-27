@@ -6,6 +6,10 @@ use gestor_core::pricing::{Price, PriceInput, find_price, seed_prices};
 use gestor_core::time::fmt_utc;
 use rusqlite::{Connection, params};
 
+fn fixed_now() -> DateTime<Utc> {
+    "2026-11-27T12:00:00Z".parse().unwrap()
+}
+
 fn sample_event(
     dedup_key: &str,
     tool: Tool,
@@ -169,7 +173,7 @@ fn sin_precio_es_unknown_y_null() {
             "2026-11-26T15:00:00Z",
         );
         insert_event_and_hourly(&conn, &ev);
-        apply_cost(&conn, &key).unwrap();
+        apply_cost(&conn, &key, fixed_now()).unwrap();
 
         let (cost_usd, cost_kind, price_id, computed_at): (
             Option<f64>,
@@ -202,7 +206,7 @@ fn suscripcion_es_api_equivalent() {
         "2026-11-26T15:00:00Z",
     );
     insert_event_and_hourly(&conn, &cc);
-    apply_cost(&conn, &cc.dedup_key).unwrap();
+    apply_cost(&conn, &cc.dedup_key, fixed_now()).unwrap();
 
     let (cc_cost, cc_kind): (Option<f64>, String) = conn
         .query_row(
@@ -222,7 +226,7 @@ fn suscripcion_es_api_equivalent() {
         "2026-11-26T15:00:00Z",
     );
     insert_event_and_hourly(&conn, &ag_claude);
-    apply_cost(&conn, &ag_claude.dedup_key).unwrap();
+    apply_cost(&conn, &ag_claude.dedup_key, fixed_now()).unwrap();
     let ag_kind: String = conn
         .query_row(
             "SELECT cost_kind FROM usage_event WHERE dedup_key = ?1",
@@ -240,7 +244,7 @@ fn suscripcion_es_api_equivalent() {
         "2026-11-26T15:00:00Z",
     );
     insert_event_and_hourly(&conn, &oc_ds);
-    apply_cost(&conn, &oc_ds.dedup_key).unwrap();
+    apply_cost(&conn, &oc_ds.dedup_key, fixed_now()).unwrap();
     let (ds_cost, ds_kind): (Option<f64>, String) = conn
         .query_row(
             "SELECT cost_usd, cost_kind FROM usage_event WHERE dedup_key = ?1",
@@ -259,7 +263,7 @@ fn suscripcion_es_api_equivalent() {
         "2026-11-26T15:00:00Z",
     );
     insert_event_and_hourly(&conn, &oc_free);
-    apply_cost(&conn, &oc_free.dedup_key).unwrap();
+    apply_cost(&conn, &oc_free.dedup_key, fixed_now()).unwrap();
     let (free_cost, free_kind): (Option<f64>, String) = conn
         .query_row(
             "SELECT cost_usd, cost_kind FROM usage_event WHERE dedup_key = ?1",
@@ -278,7 +282,7 @@ fn suscripcion_es_api_equivalent() {
         "2026-11-26T15:00:00Z",
     );
     insert_event_and_hourly(&conn, &oc_pickle);
-    apply_cost(&conn, &oc_pickle.dedup_key).unwrap();
+    apply_cost(&conn, &oc_pickle.dedup_key, fixed_now()).unwrap();
     let (pickle_cost, pickle_kind): (Option<f64>, String) = conn
         .query_row(
             "SELECT cost_usd, cost_kind FROM usage_event WHERE dedup_key = ?1",
@@ -308,6 +312,7 @@ fn patron_mas_largo_gana() {
             source_url: "https://example.com".to_string(),
             approximate: false,
         },
+        fixed_now(),
     )
     .unwrap();
     upsert_price(
@@ -323,10 +328,13 @@ fn patron_mas_largo_gana() {
             source_url: "https://example.com".to_string(),
             approximate: false,
         },
+        fixed_now(),
     )
     .unwrap();
 
-    let matched = find_price(&conn, "gemini-4-neon-high", d).unwrap().unwrap();
+    let matched = find_price(&conn, Provider::Google, "gemini-4-neon-high", d)
+        .unwrap()
+        .unwrap();
     assert_eq!(matched.model_pattern, "gemini-4-neon-*");
     assert!((matched.input - 9.0).abs() < 1e-9);
 }
@@ -337,14 +345,14 @@ fn precio_por_fecha() {
     let before_bump = NaiveDate::from_ymd_opt(2026, 11, 30).unwrap();
     let on_bump = NaiveDate::from_ymd_opt(2026, 12, 1).unwrap();
 
-    let p_old = find_price(&conn, "gemini-4-carbon-high", before_bump)
+    let p_old = find_price(&conn, Provider::Google, "gemini-4-carbon-high", before_bump)
         .unwrap()
         .unwrap();
     assert!((p_old.input - 2.0).abs() < 1e-9);
     assert!((p_old.output - 10.0).abs() < 1e-9);
     assert_eq!(p_old.valid_to, Some(on_bump));
 
-    let p_new = find_price(&conn, "gemini-4-carbon-high", on_bump)
+    let p_new = find_price(&conn, Provider::Google, "gemini-4-carbon-high", on_bump)
         .unwrap()
         .unwrap();
     assert!((p_new.input - 4.0).abs() < 1e-9);
@@ -353,6 +361,7 @@ fn precio_por_fecha() {
 
     let f_2026 = find_price(
         &conn,
+        Provider::Google,
         "gemini-3.8-flash-medium",
         NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
     )
@@ -362,6 +371,7 @@ fn precio_por_fecha() {
 
     let f_2027 = find_price(
         &conn,
+        Provider::Google,
         "gemini-3.8-flash-medium",
         NaiveDate::from_ymd_opt(2027, 1, 1).unwrap(),
     )
@@ -405,7 +415,7 @@ fn recalculo_solo_toca_eventos_afectados() {
 
     for ev in [&ev_before, &ev_on, &ev_after, &ev_other] {
         insert_event_and_hourly(&conn, ev);
-        apply_cost(&conn, &ev.dedup_key).unwrap();
+        apply_cost(&conn, &ev.dedup_key, fixed_now()).unwrap();
     }
 
     // Sincronizar hourly_agg con costes iniciales para comprobar que upsert_price también lo actualiza
@@ -467,6 +477,7 @@ fn recalculo_solo_toca_eventos_afectados() {
             source_url: "https://platform.claude.com/docs/en/about-claude/pricing".to_string(),
             approximate: false,
         },
+        fixed_now(),
     )
     .unwrap();
 
@@ -542,6 +553,7 @@ fn seed_no_pisa_precios_editados() {
             source_url: "https://manual.example".to_string(),
             approximate: false,
         },
+        fixed_now(),
     )
     .unwrap();
 
@@ -549,6 +561,7 @@ fn seed_no_pisa_precios_editados() {
 
     let p = find_price(
         &conn,
+        Provider::Anthropic,
         "claude-opus-5-5",
         NaiveDate::from_ymd_opt(2026, 11, 26).unwrap(),
     )
@@ -565,34 +578,44 @@ fn orchestrators_llevan_precios_aproximados() {
     let nov = NaiveDate::from_ymd_opt(2026, 11, 27).unwrap();
     let dec = NaiveDate::from_ymd_opt(2026, 12, 1).unwrap();
 
-    let neon = find_price(&conn, "gemini-pro-orchestrator-neon", nov)
+    let neon = find_price(&conn, Provider::Google, "gemini-pro-orchestrator-neon", nov)
         .unwrap()
         .unwrap();
     assert!(neon.approximate);
     assert!((neon.input - 3.0).abs() < 1e-9);
     assert!((neon.output - 15.0).abs() < 1e-9);
 
-    let carbon_nov = find_price(&conn, "gemini-pro-orchestrator", nov)
+    let carbon_nov = find_price(&conn, Provider::Google, "gemini-pro-orchestrator", nov)
         .unwrap()
         .unwrap();
     assert!(carbon_nov.approximate);
     assert!((carbon_nov.input - 2.0).abs() < 1e-9);
 
-    let carbon_dec = find_price(&conn, "gemini-pro-orchestrator", dec)
+    let carbon_dec = find_price(&conn, Provider::Google, "gemini-pro-orchestrator", dec)
         .unwrap()
         .unwrap();
     assert!(carbon_dec.approximate);
     assert!((carbon_dec.input - 4.0).abs() < 1e-9);
 
-    let argon_nov = find_price(&conn, "gemini-pro-orchestrator-argon", nov)
-        .unwrap()
-        .unwrap();
+    let argon_nov = find_price(
+        &conn,
+        Provider::Google,
+        "gemini-pro-orchestrator-argon",
+        nov,
+    )
+    .unwrap()
+    .unwrap();
     assert!(argon_nov.approximate);
     assert!((argon_nov.input - 2.0).abs() < 1e-9);
 
-    let argon_dec = find_price(&conn, "gemini-pro-orchestrator-argon", dec)
-        .unwrap()
-        .unwrap();
+    let argon_dec = find_price(
+        &conn,
+        Provider::Google,
+        "gemini-pro-orchestrator-argon",
+        dec,
+    )
+    .unwrap()
+    .unwrap();
     assert!(argon_dec.approximate);
     assert!((argon_dec.input - 4.0).abs() < 1e-9);
 }
@@ -617,9 +640,9 @@ fn alta_de_precio_para_evento_sin_precio_actualiza_hourly_agg_y_respeta_preceden
         "2026-11-26T15:00:00Z",
     );
     insert_event_and_hourly(&conn, &ev_unknown);
-    apply_cost(&conn, &ev_unknown.dedup_key).unwrap();
+    apply_cost(&conn, &ev_unknown.dedup_key, fixed_now()).unwrap();
     insert_event_and_hourly(&conn, &ev_neon);
-    apply_cost(&conn, &ev_neon.dedup_key).unwrap();
+    apply_cost(&conn, &ev_neon.dedup_key, fixed_now()).unwrap();
 
     // Sincronizar hourly_agg con el estado inicial tras apply_cost
     let neon_cost_before: f64 = conn
@@ -662,6 +685,7 @@ fn alta_de_precio_para_evento_sin_precio_actualiza_hourly_agg_y_respeta_preceden
             source_url: "https://example.com".to_string(),
             approximate: true,
         },
+        fixed_now(),
     )
     .unwrap();
 
@@ -678,4 +702,232 @@ fn alta_de_precio_para_evento_sin_precio_actualiza_hourly_agg_y_respeta_preceden
         .unwrap();
     assert_eq!(unpriced_sum, 0);
     assert!((cost_equiv_sum - (neon_cost_before + res.new_total)).abs() < 1e-12);
+}
+
+#[test]
+fn precios_haiku_fable_y_sonnet() {
+    let conn = open_memory().unwrap();
+    let d = NaiveDate::from_ymd_opt(2026, 11, 27).unwrap();
+
+    let haiku = find_price(&conn, Provider::Anthropic, "claude-haiku-5-5-20261001", d)
+        .unwrap()
+        .unwrap();
+    assert_eq!(haiku.provider, Provider::Anthropic);
+    assert!((haiku.input - 0.10).abs() < 1e-9);
+    assert!((haiku.output - 0.50).abs() < 1e-9);
+    assert!((haiku.cache_write - 0.125).abs() < 1e-9);
+    assert!((haiku.cache_read - 0.01).abs() < 1e-9);
+    assert!(haiku.approximate);
+
+    let fable = find_price(&conn, Provider::Anthropic, "claude-fable-5-2", d)
+        .unwrap()
+        .unwrap();
+    assert_eq!(fable.provider, Provider::Anthropic);
+    assert!((fable.input - 8.0).abs() < 1e-9);
+    assert!((fable.output - 40.0).abs() < 1e-9);
+    assert!((fable.cache_write - 10.0).abs() < 1e-9);
+    assert!((fable.cache_read - 0.20).abs() < 1e-9);
+    assert!(!fable.approximate);
+
+    let sonnet = find_price(&conn, Provider::Anthropic, "claude-sonnet-5-5", d)
+        .unwrap()
+        .unwrap();
+    assert_eq!(sonnet.provider, Provider::Anthropic);
+    assert!((sonnet.input - 2.0).abs() < 1e-9);
+    assert!((sonnet.output - 10.0).abs() < 1e-9);
+    assert!((sonnet.cache_write - 2.5).abs() < 1e-9);
+    assert!((sonnet.cache_read - 0.10).abs() < 1e-9);
+    assert!(!sonnet.approximate);
+}
+
+#[test]
+fn cambio_precio_carbon_en_borde_utc() {
+    let conn = open_memory().unwrap();
+
+    let mut ev_nov = sample_event(
+        "ag:carbon:nov",
+        Tool::Antigravity,
+        Provider::Google,
+        "gemini-4-carbon-high",
+        "2026-11-30T23:30:00Z",
+    );
+    ev_nov.input = 1_000_000;
+    ev_nov.cache_write = 0;
+    ev_nov.cache_read = 0;
+    ev_nov.output = 1_000_000;
+    ev_nov.reasoning = 0;
+
+    let mut ev_dec = ev_nov.clone();
+    ev_dec.dedup_key = "ag:carbon:dec".to_string();
+    ev_dec.ts_utc = "2026-12-01T00:30:00Z".parse().unwrap();
+
+    insert_event_and_hourly(&conn, &ev_nov);
+    insert_event_and_hourly(&conn, &ev_dec);
+    apply_cost(&conn, &ev_nov.dedup_key, fixed_now()).unwrap();
+    apply_cost(&conn, &ev_dec.dedup_key, fixed_now()).unwrap();
+
+    let nov_cost: f64 = conn
+        .query_row(
+            "SELECT cost_usd FROM usage_event WHERE dedup_key = 'ag:carbon:nov'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let dec_cost: f64 = conn
+        .query_row(
+            "SELECT cost_usd FROM usage_event WHERE dedup_key = 'ag:carbon:dec'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+
+    // Nov: 1M*2 + 1M*10 = 12 $; Dic: 1M*4 + 1M*20 = 24 $
+    assert!((nov_cost - 12.0).abs() < 1e-9);
+    assert!((dec_cost - 24.0).abs() < 1e-9);
+}
+
+#[test]
+fn deepseek_flash_free_de_other_vale_cero_real() {
+    let conn = open_memory().unwrap();
+    let ev = sample_event(
+        "oc:free-ds",
+        Tool::Opencode,
+        Provider::Other,
+        "deepseek-flash-free",
+        "2026-11-26T15:00:00Z",
+    );
+    insert_event_and_hourly(&conn, &ev);
+    apply_cost(&conn, &ev.dedup_key, fixed_now()).unwrap();
+
+    let (cost_usd, cost_kind): (Option<f64>, String) = conn
+        .query_row(
+            "SELECT cost_usd, cost_kind FROM usage_event WHERE dedup_key = ?1",
+            [&ev.dedup_key],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(cost_usd, Some(0.0));
+    assert_eq!(cost_kind, CostKind::Real.as_str());
+}
+
+#[test]
+fn upsert_price_comodin_deepseek_no_toca_google() {
+    let mut conn = open_memory().unwrap();
+    let ev_google = sample_event(
+        "ag:worker:prov",
+        Tool::Antigravity,
+        Provider::Google,
+        "gemini-flash-worker-agy",
+        "2026-11-26T15:00:00Z",
+    );
+    insert_event_and_hourly(&conn, &ev_google);
+    apply_cost(&conn, &ev_google.dedup_key, fixed_now()).unwrap();
+
+    let res = upsert_price(
+        &mut conn,
+        PriceInput {
+            provider: Provider::DeepSeek,
+            model_pattern: "*".to_string(),
+            valid_from: NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            input: 1.0,
+            output: 2.0,
+            cache_write: 0.0,
+            cache_read: 0.0,
+            source_url: "https://example.com".to_string(),
+            approximate: true,
+        },
+        fixed_now(),
+    )
+    .unwrap();
+
+    assert_eq!(res.events, 0);
+    let (cost_usd, cost_kind): (Option<f64>, String) = conn
+        .query_row(
+            "SELECT cost_usd, cost_kind FROM usage_event WHERE dedup_key = ?1",
+            [&ev_google.dedup_key],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(cost_usd, None);
+    assert_eq!(cost_kind, CostKind::Unknown.as_str());
+}
+
+#[test]
+fn apply_cost_y_upsert_price_usan_now_inyectado() {
+    let mut conn = open_memory().unwrap();
+    let ev = sample_event(
+        "cc:now:1",
+        Tool::ClaudeCode,
+        Provider::Anthropic,
+        "claude-opus-5-5",
+        "2026-11-26T15:00:00Z",
+    );
+    insert_event_and_hourly(&conn, &ev);
+
+    let t_apply: DateTime<Utc> = "2026-11-20T08:09:10Z".parse().unwrap();
+    apply_cost(&conn, &ev.dedup_key, t_apply).unwrap();
+
+    let computed_at: String = conn
+        .query_row(
+            "SELECT cost_computed_at FROM usage_event WHERE dedup_key = ?1",
+            [&ev.dedup_key],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(computed_at, "2026-11-20T08:09:10Z");
+
+    let t_upsert: DateTime<Utc> = "2026-11-21T09:10:11Z".parse().unwrap();
+    upsert_price(
+        &mut conn,
+        PriceInput {
+            provider: Provider::Anthropic,
+            model_pattern: "claude-opus-5-5*".to_string(),
+            valid_from: NaiveDate::from_ymd_opt(2026, 11, 20).unwrap(),
+            input: 8.0,
+            output: 40.0,
+            cache_write: 10.0,
+            cache_read: 0.4,
+            source_url: "https://example.com".to_string(),
+            approximate: false,
+        },
+        t_upsert,
+    )
+    .unwrap();
+
+    let computed_after: String = conn
+        .query_row(
+            "SELECT cost_computed_at FROM usage_event WHERE dedup_key = ?1",
+            [&ev.dedup_key],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(computed_after, "2026-11-21T09:10:11Z");
+
+    let log_at: String = conn
+        .query_row("SELECT at FROM cost_recalc_log", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(log_at, "2026-11-21T09:10:11Z");
+}
+
+#[test]
+fn upsert_price_usa_ix_event_ts() {
+    let conn = open_memory().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "EXPLAIN QUERY PLAN
+             SELECT e.dedup_key
+             FROM usage_event e
+             JOIN plan pl ON pl.id = e.plan_id
+             WHERE e.ts_utc >= '2026-12-01T00:00:00Z' AND e.provider = 'google'",
+        )
+        .unwrap();
+    let details: Vec<String> = stmt
+        .query_map([], |r| r.get::<_, String>(3))
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    assert!(
+        details.iter().any(|d| d.contains("ix_event_ts")),
+        "plan inesperado: {details:?}"
+    );
 }

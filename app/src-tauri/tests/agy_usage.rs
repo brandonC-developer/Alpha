@@ -18,7 +18,8 @@ fn utc(s: &str) -> DateTime<Utc> {
 
 #[test]
 fn agy_usage_se_interpreta() {
-    let buckets = parse_agy_usage(FIXTURE_USAGE).unwrap();
+    let (buckets, unknown) = parse_agy_usage(FIXTURE_USAGE).unwrap();
+    assert_eq!(unknown, 0);
     assert_eq!(buckets.len(), 4);
 
     let debug_str = format!("{buckets:?}");
@@ -82,7 +83,8 @@ fn agy_usage_calibra() {
     );
     insert_event_with_cost(&conn, &ev, Some(3.0), CostKind::ApiEquivalent);
 
-    let buckets = parse_agy_usage(FIXTURE_USAGE).unwrap();
+    let (buckets, unknown) = parse_agy_usage(FIXTURE_USAGE).unwrap();
+    assert_eq!(unknown, 0);
     let inserted = apply_agy_usage(&conn, &buckets, now).unwrap();
     // google-ai-pro tiene uso en 5h y weekly; google-ai-pro-claude no tiene uso -> 2 calibraciones
     assert_eq!(inserted, 2);
@@ -219,8 +221,9 @@ fn agy_usage_malformado() {
 
 #[test]
 fn agy_usage_ignora_bucket_desconocido() {
-    let json = r#"{"command":{"name":"usage","data":{"groups":[{"buckets":[{"id":"otro-bucket","window":"5h","remaining_fraction":0.5,"reset_time":"2026-11-27T20:00:00Z"},{"id":"gemini-5h","window":"5h","remaining_fraction":0.6,"reset_time":"2026-11-27T20:02:00Z"}]}]}}}"#;
-    let buckets = parse_agy_usage(json).unwrap();
+    let json = r#"{"command":{"name":"usage","data":{"groups":[{"buckets":[{"id":"imagen-5h","window":"5h","remaining_fraction":0.5,"reset_time":"2026-11-27T20:00:00Z"},{"id":"otro-bucket","window":"5h","remaining_fraction":0.5,"reset_time":"2026-11-27T20:00:00Z"},{"id":"gemini-5h","window":"5h","remaining_fraction":0.6,"reset_time":"2026-11-27T20:02:00Z"}]}]}}}"#;
+    let (buckets, unknown) = parse_agy_usage(json).unwrap();
+    assert_eq!(unknown, 2);
     assert_eq!(buckets.len(), 1);
     assert_eq!(buckets[0].plan_id, "google-ai-pro");
     assert_eq!(buckets[0].window, WindowName::FiveHours);

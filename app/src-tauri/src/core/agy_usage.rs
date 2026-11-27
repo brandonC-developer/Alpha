@@ -44,8 +44,8 @@ struct AgyBucketRaw {
     reset_time: String,
 }
 
-/// Interpreta la salida JSON de `agy /usage` extrayendo únicamente las cubetas conocidas.
-pub fn parse_agy_usage(json: &str) -> Result<Vec<AgyBucket>> {
+/// Interpreta la salida JSON de `agy /usage` extrayendo las cubetas conocidas y contando las desconocidas ignoradas.
+pub fn parse_agy_usage(json: &str) -> Result<(Vec<AgyBucket>, usize)> {
     let parsed: AgyOutput = serde_json::from_str(json).map_err(|err| CoreError::Parse {
         file: "agy_usage".to_string(),
         line: 0,
@@ -53,9 +53,11 @@ pub fn parse_agy_usage(json: &str) -> Result<Vec<AgyBucket>> {
     })?;
 
     let mut out = Vec::new();
+    let mut unknown_buckets = 0usize;
     for group in parsed.command.data.groups {
         for raw in group.buckets {
             let Some((plan_id, window)) = map_bucket_id(&raw.id) else {
+                unknown_buckets += 1;
                 continue;
             };
             if !raw.remaining_fraction.is_finite() || !(0.0..=1.0).contains(&raw.remaining_fraction)
@@ -95,7 +97,7 @@ pub fn parse_agy_usage(json: &str) -> Result<Vec<AgyBucket>> {
         }
     }
 
-    Ok(out)
+    Ok((out, unknown_buckets))
 }
 
 /// Aplica calibraciones `source = 'agy'` a partir de las cubetas interpretadas, devolviendo cuántas se registraron.
