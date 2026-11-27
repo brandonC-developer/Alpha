@@ -187,7 +187,7 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 ```rust
 #[test] fn esquema_se_aplica_una_vez() { /* open_db dos veces sobre el mismo archivo temporal → user_version = 1 y sin error */ }
 #[test] fn tablas_existen() { /* las 10 tablas de 03-arquitectura §3 existen */ }
-#[test] fn planes_sembrados() { /* 4 filas en plan: «Claude Pro», «Google AI Pro · Gemini» (con la cuota mensual), «Google AI Pro · Claude y GPT» (cuota 0: es el mismo pago) y «DeepSeek»; cambiar monthly_fee_usd y reabrir → se conserva */ }
+#[test] fn planes_sembrados() { /* 4 filas en plan: «Claude Pro», «Google AI Pro · Gemini» (cuota 20 $), «Google AI Pro · Claude y GPT» (cuota 0: es el mismo pago) y «DeepSeek»; cambiar monthly_fee_usd y reabrir → se conserva */ }
 #[test] fn plan_por_herramienta() {
     assert_eq!(plan_for(Tool::ClaudeCode, Provider::Anthropic), "claude-pro");
     assert_eq!(plan_for(Tool::Antigravity, Provider::Google), "google-ai-pro");

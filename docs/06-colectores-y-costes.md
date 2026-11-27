@@ -150,7 +150,8 @@ Formato:
 
 - **Gemini 4 (Neon, Hydrogen, Carbon):** Google solo publica precio de API para Gemini 4 Argon, que se retira. Antes de la fase 3, Claude revisa `ai.google.dev/gemini-api/docs/pricing`; si siguen sin precio, se usa el de Argon como aproximación para los tres (marcado `approximate: true`) y se documenta aquí. Mientras tanto, los eventos de Antigravity salen como «sin precio» (`unknown`), que es el comportamiento correcto.
 - **Ids sin precio:** `gemini-pro-orchestrator-*`, `gemini-flash-worker-agy` y `gemini-3.8-flash-*` (vistos en la fase 0) no tienen precio de API: salen como «sin precio» (`unknown`). Los `gemini-4-hydrogen-tiered-*` los cubre el patrón `gemini-4-*`.
-- **Cuota de Google AI Pro en dólares:** el usuario la confirma en la fase 0 (se usa para el rendimiento del plan). Es una sola cuota mensual para los planes `google-ai-pro` y `google-ai-pro-claude`; el rendimiento se calcula sumando los dos.
+- **Cuota de Google AI Pro: 20 $/mes** (confirmada por el usuario el 27/11/2026). Se siembra en `google-ai-pro`. Es una sola cuota mensual para los planes `google-ai-pro` y `google-ai-pro-claude`; el rendimiento se calcula sumando los dos.
+- **DeepSeek, saldo:** el saldo recargado no caduca; solo caduca el saldo regalado (`granted_balance`), según la FAQ oficial. DeepSeek no publica una recarga mínima oficial: las fuentes de terceros hablan de 2 $ a 5 $. El usuario recargó 5 $ (27/11/2026).
 - **DeepSeek hora punta:** la v1 usa una sola tarifa por modelo. Si la diferencia entre el gasto calculado y la bajada de saldo supera el 10 % en un mes, se abre una tarea nueva para tarifas por franja horaria.
 
 ## 4. Fixtures exactos

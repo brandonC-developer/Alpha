@@ -12,7 +12,7 @@ rustc 1.100.0 · cargo 1.100.0 · node v24.22.1 · npm 11.19.1 · git 2.45.0.win
 | --- | --- |
 | DeepSeek recargado y consulta de prueba | Hecho. Hay una llamada `deepseek-flash` registrada en opencode a las 09:30 |
 | Punto de restauración | Hecho, según el usuario (Claude no puede leerlo sin permisos de administrador) |
-| Copia de seguridad | **Pendiente.** El repositorio Git no tiene remoto: la copia está solo en E:. Hace falta una copia fuera de E: antes de la fase 1 (`09-seguridad.md` §3.3) |
+| Copia de seguridad | Hecha: remoto `origin` en GitHub (`brandonC-developer/Alpha`). Hay que subir los commits nuevos con `git push` |
 
 ## Comprobaciones
 
@@ -38,9 +38,7 @@ rustc 1.100.0 · cargo 1.100.0 · node v24.22.1 · npm 11.19.1 · git 2.45.0.win
 
 ## Lo que debe hacer el usuario
 
-- **Copia de seguridad fuera de E:**, antes de la fase 1.
-- **Cuota de Google AI Pro en dólares al mes** (para el rendimiento del plan).
-- **DeepSeek:** la recarga mínima y si el saldo caduca, mirándolo en la consola de DeepSeek.
+- Resuelto el 27/11/2026: copia en GitHub; Google AI Pro cuesta 20 $/mes; DeepSeek está recargado con 5 $ y el saldo recargado no caduca (FAQ oficial). En opencode constan 5 llamadas de pago, que cuestan 0,0054 $ según opencode.
 
 ## Decisiones tomadas sin estar en el plan
 

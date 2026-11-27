@@ -198,8 +198,8 @@ const costes = page('Costes', 'Costes', `
   <!-- datos: get_costs → realUsd, apiEquivalentUsd, feesUsd, yield -->
   ${kpi('Gasto real', '3,84 $', 'DeepSeek', '+3,84 $', costDays.map((c) => c.real + 0.001))}
   ${kpi('Equivalente API', '298,40 $', 'Claude Pro · Antigravity sin precio', '+164 %', costDays.map((c) => c.eq), 'up')}
-  ${kpi('Cuota pagada', '20,00 $', 'Claude Pro · Google AI Pro sin confirmar', '=', costDays.map(() => 1))}
-  ${kpi('Rendimiento', '14,9×', 'equivalente / cuota', '+5,2×', costDays.map((c) => c.eq), 'up')}
+  ${kpi('Cuota pagada', '40,00 $', 'Claude Pro 20 $ · Google AI Pro 20 $', '=', costDays.map(() => 1))}
+  ${kpi('Rendimiento', '14,9×', 'Claude Pro: equivalente / cuota', '+5,2×', costDays.map((c) => c.eq), 'up')}
 </section>
 <p class="notice">El equivalente API es una referencia: con tu suscripción no pagas por token</p>
 <p class="notice warn"><b>412 llamadas sin precio</b> (gemini-4-neon-xhigh, gemini-4-hydrogen-high…). No se cuentan como 0. <a href="Ajustes.html#precios">Añadir precio</a></p>
@@ -214,7 +214,7 @@ const costes = page('Costes', 'Costes', `
     <header class="sec"><h2 class="label">Rendimiento por suscripción</h2></header>
     <!-- datos: get_costs → yield -->
     <div class="yield"><div><b>Claude Pro</b><span class="muted small">20,00 $/mes · equivalente 298,40 $</span></div><p class="big2">14,9×</p></div>
-    <div class="yield"><div><b>Google AI Pro</b><span class="muted small">cuota sin confirmar · 412 llamadas sin precio</span></div><p class="big2 muted">—</p></div>
+    <div class="yield"><div><b>Google AI Pro</b><span class="muted small">20,00 $/mes · 412 llamadas sin precio</span></div><p class="big2 muted">—</p></div>
     <h3 class="label mt">DeepSeek este mes</h3>
     <!-- datos: get_costs → deepseekBudget, monthProjection -->
     <div class="bar" role="progressbar" aria-valuenow="77" aria-valuemin="0" aria-valuemax="100" aria-label="Presupuesto de DeepSeek"><i style="width:77%"></i></div>
@@ -256,7 +256,7 @@ const planes = page('Planes', 'Planes', `
     <footer class="actions"><button class="btn">Calibrar</button><button class="btn ghost">Editar cuota</button></footer>
   </article>
   <article class="card plan alert">
-    <header class="sec"><h2><i class="dot p-google"></i>Google AI Pro</h2><span class="muted small">cuota sin confirmar · Antigravity</span></header>
+    <header class="sec"><h2><i class="dot p-google"></i>Google AI Pro</h2><span class="muted small">20,00 $/mes · Antigravity</span></header>
     <p class="small muted calib"><span class="tag ok">% oficial de agy</span> actualizado hace 3 min</p>
     <!-- grupo: google-ai-pro -->
     <section class="grp" aria-label="Modelos Gemini">
