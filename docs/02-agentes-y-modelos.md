@@ -17,12 +17,12 @@ flowchart TB
   U --> N3["N3 · Antigravity Orchestrator<br/>Gemini 4 Neon High"]
   N3 -->|núcleo| N2A["N2 · implementador-nucleo<br/>Gemini 4 Hydrogen"]
   N3 -->|interfaz base| N2U["N2 · implementador-ui / qa-app / verificador<br/>Gemini 4 Hydrogen"]
-  N3 -->|revisión| RV["N2 · revisor<br/>Claude Sonnet 5.5 en Antigravity*"]
+  N3 -->|revisión| RV["N2 · revisor<br/>Gemini 4 Hydrogen XHigh (pro)"]
   U -->|tareas con pruebas fuertes| OC["N2 · opencode<br/>deepseek-v4.1-flash-free → deepseek-flash (5 $)"]
   U -.->|puertas 3 y 7| N4G["N4 · Gemini 4 Carbon High"]
 ```
 
-\* Si la fase 0 confirma que los modelos Claude de Antigravity tienen cuota propia y que un subagente puede fijar su modelo (§4). Si no, el `revisor` sigue en Hydrogen `pro`.
+Un subagente de Antigravity no puede usar Claude (§4.1). La revisión de otra familia la hace Claude en las fases 3 y 7, en Claude Code o en Antigravity cambiando el modelo de la conversación.
 
 | Nivel | Herramienta y modelo | Cuota que gasta | Hace | No hace nunca |
 | --- | --- | --- | --- | --- |
@@ -55,7 +55,7 @@ flowchart TB
 | T14 opencode y DeepSeek | M | Silencioso (secretos) | Antigravity `implementador-nucleo` | Hydrogen | High | XHigh → `handoff/` | revisor |
 | T15 Exportar e importar | S | Visible | **opencode** `implementador` | DeepSeek V4.1 Flash | `low` | `high`; si vuelve a fallar, Antigravity `implementador-nucleo` | revisor |
 | T16 Entrega | M | Visible | Antigravity `implementador-nucleo` + usuario | Hydrogen | High | XHigh | Carbon + usuario |
-| Puertas (pruebas) | — | — | Antigravity `verificador` · o opencode `verificador` si falta cuota de Gemini | Hydrogen · DeepSeek V4.1 Flash | Medium · `low` | — | — |
+| Puertas (pruebas) | — | — | Antigravity `verificador` · o opencode `verificador` si falta cuota de Gemini | Hydrogen · DeepSeek V4.1 Flash | High (`flash`; no hay Medium para subagentes, §4.1) · `low` | — | — |
 
 Por qué T13 y T15 van a opencode: son las tareas de error visible que el plan permite hacer en paralelo (T12 ∥ T13) o que son pequeñas y están bien cubiertas por pruebas (T15). Ninguna toca tokens, dinero, límites ni secretos.
 
@@ -65,7 +65,7 @@ Por qué T13 y T15 van a opencode: son las tareas de error visible que el plan p
 2. **Con una comprobación fiable, se empieza por la intensidad baja y se sube solo tras un fallo verificado.** Empezar en el nivel más bajo y escalar tras un fallo verificado iguala o mejora al nivel máximo fijo, con menos coste (Sun et al., 2026, §8.2). Aquí la comprobación fiable son las pruebas TDD y la comparación con los mockups.
 3. **Sin comprobación fiable, se empieza en High, nunca en XHigh.** La escalera de Sun et al. exige una comprobación externa fiable, y en el núcleo los errores son silenciosos. Aun así, XHigh cuesta de 2,4 a 4,5 veces más que Low sin mejorar a High (Weinberger y Hozez, 2026), y de High a XHigh se pierden tareas que High resolvía (Sun et al., 2026). XHigh queda solo como segundo intento.
 4. **Escalar, nunca empezar por arriba** (FrugalGPT, Stanford 2023): dos fallos verificados en un nivel → el siguiente. Al final de la escalera: parar y escribir en `handoff/preguntas.md`.
-5. **Revisa una familia de modelos distinta de la que programó.** Los modelos evaluadores reconocen y prefieren sus propios textos (Panickssery et al., NeurIPS 2024). Por eso el `revisor` pasa a Claude cuando la fase 0 lo permita (§4), y Carbon y Claude revisan la fase 3.
+5. **Revisa una familia de modelos distinta de la que programó.** Los modelos evaluadores reconocen y prefieren sus propios textos (Panickssery et al., NeurIPS 2024). Como un subagente no puede usar Claude (§4.1), el `revisor` es Hydrogen y la revisión de otra familia la hace Claude en las fases 3 y 7. Carbon (fases 3 y 7) es otro modelo de Gemini: aporta más capacidad, no otra familia.
 6. **No se piden «piensa más» ni «considera varias alternativas» en los prompts.** Esas frases multiplican el razonamiento de 1,6 a 7,4 veces sin más aciertos (Weinberger y Hozez, 2026). La intensidad se elige con el nivel, no con palabras (lo mismo dice la guía oficial de Claude Code, §6).
 
 ## 4. Los agentes
@@ -75,13 +75,18 @@ Por qué T13 y T15 van a opencode: son las tareas de error visible que el plan p
 | Agente | Modelo e intensidad | Ejecución de comandos | Hace | No hace |
 | --- | --- | --- | --- | --- |
 | Conversación principal | Orchestrator (Neon High) | — | Lee la fase, invoca subagentes, fusiona, escribe informes | Implementar |
-| `implementador-nucleo` | `pro` (Hydrogen; ver nota) | `auto` | T1–T10, T14, T16 con TDD | Tocar `app/src/` (salvo T1) |
+| `implementador-nucleo` | `flash` (Hydrogen High); `pro` (XHigh) en el segundo intento | `auto` | T1–T10, T14, T16 con TDD | Tocar `app/src/` (salvo T1) |
 | `implementador-ui` | `flash` (Hydrogen High) | `auto` | T11, T12 y lo que opencode devuelva | Tocar `app/src-tauri/` |
 | `verificador` | `flash` | `auto` | `cargo test`, `cargo clippy`, `npm test`, `tsc`, puertas | Cambiar archivos |
-| `revisor` | `pro` hoy; Claude Sonnet 5.5 High si la fase 0 lo permite | `sandbox` | Revisa el diff de la fase contra spec, plan y contratos | Cambiar archivos |
+| `revisor` | `pro` (XHigh): revisa una sola vez y no hay prueba que detecte su fallo, así que no hay escalera | `sandbox` | Revisa el diff de la fase contra spec, plan y contratos | Cambiar archivos |
 | `qa-app` | `flash` | `auto` | Navegador integrado con datos simulados: compara con los mockups | Cambiar `app/` |
 
-Nota: en AZ-900 se midió `flash` = Hydrogen High y `pro` = Hydrogen XHigh. La fase 0 comprueba si un archivo de `.agents/agents/` acepta un id exacto de `agy models` (por ejemplo `gemini-4-hydrogen-high`). Si lo acepta, `implementador-nucleo` usa High y XHigh queda solo para el segundo intento (§3.3). Si no, se mantiene `pro`.
+Nota (validada en foros e issues, 27/11/2026, §8.3):
+- El campo `model:` de un subagente **solo acepta niveles**: `inherit`, `flash_lite`, `flash`, `pro`. Con un id exacto (`gemini-4-argon-high`, `claude-sonnet-5.5`) el subagente deja de registrarse (issues #1150 y #1242 de `antigravity-cli`).
+- Con agy 1.5.12–1.5.17, `flash` = `gemini-4-hydrogen-tiered-high` y `pro` = `gemini-4-hydrogen-tiered-xhigh` (#1242, #1846). Coincide con lo medido en AZ-900. Google cambió esta correspondencia al menos dos veces entre octubre y noviembre, así que la fase 0 la vuelve a comprobar.
+- La intensidad de un subagente no se puede fijar aparte (respuesta en el foro de Google, 19/10/2026): va incluida en el nivel.
+- El segundo intento se pide al Orchestrator invocando el mismo subagente con `Model: pro`.
+- Un subagente **no puede usar Claude**. Para que revise Claude dentro de Antigravity, el usuario cambia el modelo de la conversación (`/model`), igual que con Carbon, o usa `/swarm`, que según la documentación oficial admite un modelo por trabajador (en vista previa).
 
 La ventana real de Tauri (bandeja, notificaciones, logs reales) la prueba **el usuario** en las puertas 4 y 7: Antigravity no puede controlar una ventana nativa.
 
@@ -117,7 +122,7 @@ Referencia: Gemini 4 Hydrogen 54,0 %, Neon 61,6 %, Carbon 63,1 %, Claude Sonnet 
 ### 5.2 La cadena
 
 1. **`opencode/deepseek-v4.1-flash-free`**, con la intensidad de §2.
-2. **Cuando el gratuito se agota**, cambiar a **`deepseek/deepseek-flash`** (de pago), con la misma intensidad. Se nota porque opencode devuelve «Rate limit exceeded» o el aviso del límite diario: opencode confirma que existe un límite diario para los modelos gratuitos, pero no publica la cifra. Es el mismo modelo, así que la tarea sigue igual:
+2. **Cuando el gratuito se agota**, cambiar a **`deepseek/deepseek-flash`** (de pago), con la misma intensidad. Se nota porque opencode devuelve «Rate limit exceeded» o el aviso del límite diario: opencode confirma que existe un límite diario para los modelos gratuitos, pero no publica la cifra. En los issues de opencode los usuarios lo describen así: un día se cortó tras unas 966 peticiones (#55816); otro usuario gastó el límite del día en una sola petición con muchas llamadas a herramientas (#59502); y en noviembre parece que lo bajaron (#61553). Conviene contar con que se agote a mitad de una tarea. Es el mismo modelo, así que la tarea sigue igual:
    ```powershell
    opencode run --agent implementador -m deepseek/deepseek-flash --variant low "Continúa T13"
    ```
@@ -182,6 +187,19 @@ Se usa Terminal-Bench 4.0 y no SWE-bench Verified porque Vals.ai marca SWE-bench
 | Chen, Zaharia y Zou (Stanford), *FrugalGPT*, 2023; Ong et al. (UC Berkeley/LMSYS), *RouteLLM*, 2024 | Cascadas y enrutado entre modelos baratos y caros | Empezar barato y escalar (§3.4) |
 | Panickssery, Bowman y Feng, *LLM Evaluators Recognize and Favor Their Own Generations*, NeurIPS 2024 | Sesgo de un modelo al evaluar sus propios textos | Revisa una familia distinta (§3.5) |
 | Liu et al. (Stanford), *Lost in the Middle*, 2023 | Pérdida de información en contextos largos | Una tarea por invocación y contexto mínimo |
+| *Reasoning effort, not tool access, buys first-try reliability*, arXiv:2607.02436, jul. 2026 (estudio observacional) | Opus 4.7 en High frente a XHigh, 18 ejecuciones | **En contra en parte:** XHigh acertó a la primera más veces (6 de 6 frente a 2 de 6) por un 9–29 % más de coste. Muestra muy pequeña y un solo modelo. Respalda usar XHigh en el segundo intento, no empezar por él |
+| *Singularity-Bench*, arXiv:2611.16591, nov. 2026 | Opus 5.5 con distintos niveles en tareas largas | Más intensidad no dio mejores resultados de forma fiable; el gasto dependió de cuánto tiempo siguió trabajando el agente. Respalda las tareas acotadas (una por invocación) |
+
+### 8.3 Casos reales (foros e issues, comprobados el 27/11/2026)
+
+| Fuente | Qué cuentan | Qué cambia aquí |
+| --- | --- | --- |
+| `antigravity-cli` #1150, #1242, #1846 (GitHub, oct.–nov. 2026, abiertos) | `model:` solo acepta `inherit`, `flash_lite`, `flash` y `pro`; con un id exacto el subagente no se registra. Con agy 1.5.12–1.5.17, `flash` = Hydrogen High y `pro` = Hydrogen XHigh | `implementador-nucleo` pasa de `pro` a `flash` (High) y sube a `pro` en el segundo intento: así se cumple §3.3. El `revisor` no puede ser Claude (§4.1) |
+| Foro de Google AI Developers, *Subagent Reasoning level* (oct.–nov. 2026) | No existe un parámetro para fijar la intensidad de un subagente; la petición se pasó a ingeniería | La intensidad se elige con el nivel (`flash` o `pro`) |
+| Documentación oficial de `/swarm` en Antigravity | Cada trabajador puede usar otro modelo del selector; está en vista previa | Vía para que revise Claude dentro de Antigravity sin salir de la conversación |
+| SmartScope, enjoy.dev y foro de Google (nov. 2026) | «View Usage» muestra dos grupos: «Gemini Models» y «Claude and GPT models», cada uno con sus barras de 5 h y semanal. Un usuario dice que su grupo Claude bajó usando solo Gemini | Probable cuota aparte para Claude: la fase 0 lo confirma con una consulta de prueba |
+| `opencode` #55816, #59502, #61553 (GitHub) | El límite diario del gratuito no se publica, varía y se puede gastar en una sola petición | El paso a `deepseek-flash` de pago (§5.2) es necesario, no un caso raro |
+| Reseñas de DeepSeek V4.1 Flash en opencode (dev.to, OmniaKey) y Hacker News | Usa bien las herramientas en opencode, pero se desvía en ejecuciones largas y poco definidas; una versión anterior de Flash entraba en bucles | Solo tareas pequeñas y bien acotadas (T13, T15) y parar tras dos fallos |
 
 ## 9. Fuentes
 
@@ -190,4 +208,6 @@ Se usa Terminal-Bench 4.0 y no SWE-bench Verified porque Vals.ai marca SWE-bench
 - opencode: [Zen, modelos gratuitos y su política de datos](https://opencode.ai/docs/zen) · [plan Go: límite diario de los gratuitos](https://opencode.ai/console/go) · `opencode models opencode --verbose` (11 modelos gratuitos, 26/11/2026).
 - DeepSeek: [precios y hora punta](https://api-docs.deepseek.com/quick_start/pricing) · [límites de concurrencia](https://api-docs.deepseek.com/quick_start/rate_limit/) · [cambio de precios del 16/08/2026](https://api-docs.deepseek.com/news/news260813).
 - Claude Code: [gestión de costes](https://code.claude.com/docs/en/costs) · [buenas prácticas](https://code.claude.com/docs/en/best-practices).
-- Antigravity: `agy models` (26/11/2026) · [precios de Google Antigravity](https://antigravity.google/pricing/) (Claude Opus/Sonnet 5.5 incluidos en Google AI Pro; las fuentes no coinciden en si su cuota es aparte, por eso se comprueba en la fase 0).
+- Antigravity: `agy models` (26/11/2026) · [precios de Google Antigravity](https://antigravity.google/pricing/) (Claude Opus/Sonnet 5.5 incluidos en Google AI Pro) · [issue #1150](https://github.com/google-antigravity/antigravity-cli/issues/1150) · [issue #1242](https://github.com/google-antigravity/antigravity-cli/issues/1242) · [issue #1846](https://github.com/google-antigravity/antigravity-cli/issues/1846) · [foro: Subagent Reasoning level](https://discuss.ai.google.dev/t/subagent-reasoning-level/189378) · [foro: Neon o Hydrogen en un subagente](https://discuss.ai.google.dev/t/using-neon-or-hydrogen-in-custom-subagent/203989) · [documentación de /swarm](https://antigravity.google/docs/swarm) · [SmartScope: cuota de Claude en Antigravity](https://smartscope.blog/en/blog/antigravity-claude-quota-five-hour-weekly-limits-2026/) · [foro: grupo Claude/GPT que baja usando Gemini](https://discuss.ai.google.dev/t/claude-gpt-quota-draining-while-using-only-gemini-models-wrong-pool-billed/206003).
+- Casos reales de opencode y DeepSeek: [#55816](https://github.com/anomalyco/opencode/issues/55816) · [#59502](https://github.com/anomalyco/opencode/issues/59502) · [#61553](https://github.com/anomalyco/opencode/issues/61553) · [dev.to: OpenCode + DeepSeek V4](https://dev.to/playfulprogramming/opencode-deepseek-v4-the-budget-combo-that-doesnt-feel-like-a-budget-combo-4kca) · [OmniaKey: reseña de V4.1 Flash](https://omniakey.com/blog/deepseek-v4-1-flash-review) · [Hacker News](https://news.ycombinator.com/item?id=49624603).
+- Estudios añadidos: [arXiv:2607.02436](https://arxiv.org/abs/2607.02436) · [arXiv:2611.16591](https://arxiv.org/abs/2611.16591).

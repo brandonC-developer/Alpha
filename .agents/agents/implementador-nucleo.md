@@ -3,7 +3,7 @@ name: implementador-nucleo
 description: Implementa con TDD una tarea del núcleo Rust o de la capa Tauri (T1–T10, T14–T16) del Gestor de Tokens. Recibe un número de tarea y la completa entera, con sus pruebas y su commit.
 subagent: true
 mainAgent: false
-model: pro
+model: flash
 commandExecutionPolicy: auto
 tools:
   - read_file

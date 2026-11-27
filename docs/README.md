@@ -37,7 +37,7 @@ Claude escribe esta documentación; Antigravity la usa para programar la app en 
 AGENTS.md                         reglas permanentes (también las lee opencode)
 .agents/rules/                    rust · web · pruebas · privacidad (por tipo de archivo)
 .agents/skills/                   ejecutar-tarea-tdd · cerrar-fase · mockup-a-react
-.agents/agents/                   implementador-nucleo (pro) · implementador-ui (flash)
+.agents/agents/                   implementador-nucleo (flash; pro al 2.º intento) · implementador-ui (flash)
                                   verificador (flash) · revisor (pro) · qa-app (flash)
 ```
 

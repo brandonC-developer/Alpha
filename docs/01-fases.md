@@ -21,13 +21,13 @@ Las fases 4 y 5 pueden ir en paralelo: la interfaz usa datos simulados hasta que
 | Fase | Tareas | Agente | Nivel | Revisión en la puerta | Riesgo | Cuota de Gemini |
 | --- | --- | --- | --- | --- | --- | --- |
 | 0 Preparación | — | Usuario + Orchestrator | — | Usuario + Claude | Bajo | Muy baja |
-| 1 Cimientos | T1, T2 | `implementador-nucleo` | `pro` | `verificador` + `revisor` | Medio: toolchain de Windows | Media |
-| 2 Colectores e ingesta | T3 ∥ T4 → T5 | `implementador-nucleo` | `pro` | `verificador` + `revisor` | **Alto: contar mal** | Alta |
-| 3 Coste, consultas, planes | T6 → T7 ∥ T8 → T9 | `implementador-nucleo` | `pro` | `verificador` + **Carbon** + **Claude** | **Máximo: dinero** | Alta |
-| 4 Escritorio | T10 | `implementador-nucleo` | `pro` | `verificador` + `revisor` + usuario | Alto: hilos, bandeja | Media |
+| 1 Cimientos | T1, T2 | `implementador-nucleo` | `flash` → `pro` | `verificador` + `revisor` | Medio: toolchain de Windows | Media |
+| 2 Colectores e ingesta | T3 ∥ T4 → T5 | `implementador-nucleo` | `flash` → `pro` | `verificador` + `revisor` | **Alto: contar mal** | Alta |
+| 3 Coste, consultas, planes | T6 → T7 ∥ T8 → T9 | `implementador-nucleo` | `flash` → `pro` | `verificador` + **Carbon** + **Claude** | **Máximo: dinero** | Alta |
+| 4 Escritorio | T10 | `implementador-nucleo` | `flash` → `pro` | `verificador` + `revisor` + usuario | Alto: hilos, bandeja | Media |
 | 5 Interfaz | T11 → T12 ∥ T13 | `implementador-ui` (T11, T12) · **opencode** `implementador` (T13) | `flash` · DeepSeek V4.1 Flash `low` | `verificador` + `qa-app` | Medio | Alta |
-| 6 Reserva y datos | T14 → T15 | `implementador-nucleo` (T14) · **opencode** `implementador` (T15) | `pro` · DeepSeek V4.1 Flash `low` | `verificador` + `revisor` | Medio: secretos | Media |
-| 7 Entrega | T16 | `implementador-nucleo` + usuario | `pro` | **Carbon** + usuario | Medio | Baja |
+| 6 Reserva y datos | T14 → T15 | `implementador-nucleo` (T14) · **opencode** `implementador` (T15) | `flash` → `pro` · DeepSeek V4.1 Flash `low` | `verificador` + `revisor` | Medio: secretos | Media |
+| 7 Entrega | T16 | `implementador-nucleo` + usuario | `flash` → `pro` | **Carbon** + usuario | Medio | Baja |
 
 Los agentes, los modelos, el peso y el razonamiento de cada tarea están en [02-agentes-y-modelos.md](02-agentes-y-modelos.md).
 
@@ -53,7 +53,7 @@ Los agentes, los modelos, el peso y el razonamiento de cada tarea están en [02-
 > Ejecuta la fase 0 de `docs/01-fases.md`, parte «Comprobar». No escribas código. Escribe los resultados en `handoff/fase-0-informe.md`.
 
 - [ ] Cargados: `AGENTS.md`, las reglas de `.agents/rules/`, las skills de `.agents/skills/` y los 5 subagentes de `.agents/agents/`. Para cada subagente, su modelo real y sus herramientas (invocarlo y pedirle que las liste sin escribir nada).
-- [ ] **Modelo exacto en un subagente** (`02-agentes-y-modelos.md` §4.1): en una copia temporal de `verificador.md` fuera de `.agents/`, cambiar `model: flash` por `model: gemini-4-hydrogen-medium` y comprobar si Antigravity la acepta y qué modelo usa. Probar lo mismo con `claude-sonnet-5-5-high`. Anotar el resultado y borrar la copia.
+- [ ] **Modelo real de cada nivel** (`02-agentes-y-modelos.md` §4.1): invocar `verificador` una vez con su `flash` y otra con `Model: pro`, y anotar qué id de modelo aparece en su `transcript.jsonl` (se espera `gemini-4-hydrogen-tiered-high` y `…-tiered-xhigh`). No probar ids exactos en `model:`: según los issues #1150 y #1242 de `antigravity-cli`, el subagente deja de registrarse.
 - [ ] **Cuota de los modelos Claude en Antigravity:** en «View Usage», anotar si Claude Opus/Sonnet 5.5 tienen barras de 5 h y semanal propias o comparten las de Gemini. Hacer una consulta corta con Claude Sonnet 5.5 y comprobar qué barra baja.
 - [ ] **Antigravity cuenta la caché dentro de la entrada:** en 3 conversaciones distintas de `%USERPROFILE%\.gemini\antigravity\brain\`, comprobar en `transcript.jsonl` que `input_tokens ≥ cache_read_tokens` en todos los pasos con `source = MODEL`. Anotar cuántos pasos se revisaron y si alguno no cumple. **Solo números: no copiar ningún texto del transcript.**
 - [ ] **Claude Code:** en 2 archivos de `%USERPROFILE%\.claude\projects\`, contar cuántas líneas `assistant` comparten `message.id` (confirma la deduplicación de `docs/06` §1.1).
@@ -210,11 +210,12 @@ Con dos fallos verificados, repetir con `--variant high`. Si vuelve a fallar, T1
 1. `implementador-nucleo`: T16, pasos 1–4 y 6.
 2. **Usuario:** `npm run tauri build`, instalar el `.exe` de NSIS, recorrer CU1–CU11 del plan y anotar el resultado en `handoff/fase-7-cu.md`.
 3. **Revisión final con Carbon (High):** como en la fase 3, sobre todo `app/`, con salida en `handoff/fase-7-revision-carbon.md`. Foco: privacidad (contenido de logs o claves que se filtren), capabilities de Tauri, CSP y errores que lleguen sin traducir.
+4. **Revisión de Claude (otra familia):** el mismo foco, solo sobre `app/src-tauri/src/core/` y `app/src-tauri/capabilities/`, con salida en `handoff/fase-7-revision-claude.md`. Igual que en la fase 3: en Antigravity con Claude Opus 5.5 High (`/model`) si la fase 0 confirmó que su cuota es aparte; si no, en Claude Code.
 
 **Puerta 7 (entrega):**
 
 - [ ] Todas las baterías en verde, incluido `panel_rapido` (< 300 ms).
 - [ ] Reposo medido: < 1 % de CPU y < 150 MB, anotado en el README.
 - [ ] CU1–CU11 correctos.
-- [ ] Sin hallazgos graves de Carbon.
+- [ ] Sin hallazgos graves de Carbon ni de Claude.
 - [ ] El usuario da el visto bueno.
