@@ -5,6 +5,7 @@ pub mod error;
 pub mod ingest;
 pub mod model;
 pub mod pricing;
+pub mod query;
 pub mod time;
 
 /// Versión actual del núcleo `gestor_core`, coincidente con `Cargo.toml`.
