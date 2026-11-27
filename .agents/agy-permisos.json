@@ -4,6 +4,7 @@
       "command(regex:^git (status|diff|log|show|rev-parse)( [^;&|`$<>]*)?$)",
       "command(regex:^git branch --show-current$)",
       "command(regex:^git add (app|handoff)/[^;&|`$<>]*$)",
+      "command(regex:^git add .gitignore$)",
       "command(regex:^git commit -m \"[^\"`$;&|<>]*\"$)",
       "command(regex:^cargo (test|clippy|fmt|check|build|tree)( [^;&|`$<>]*)?$)",
       "command(regex:^npm (test|run test)( [^;&|`$<>]*)?$)",
