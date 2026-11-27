@@ -1024,3 +1024,390 @@ fn session_hour_equivale_a_eventos() {
         }
     }
 }
+
+#[test]
+fn session_hour_mezcla_proveedores_y_proyectos() {
+    let conn = open_memory().unwrap();
+    let tz = Utc;
+    let base = utc("2026-11-26T10:00:00Z");
+
+    // Caso 1 de Carbon: eventos cada minuto alternando google y anthropic (0..5 min) -> 300 s total, 240 s por proveedor
+    for (idx, provider) in [
+        Provider::Google,
+        Provider::Anthropic,
+        Provider::Google,
+        Provider::Anthropic,
+        Provider::Google,
+        Provider::Anthropic,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let model = match provider {
+            Provider::Google => "gemini-4-neon-xhigh",
+            _ => "claude-opus-5-5",
+        };
+        let ev = make_event(
+            &format!("ag:mix1:{idx}"),
+            Tool::Antigravity,
+            provider,
+            model,
+            base + Duration::minutes(idx as i64),
+            "conv-1",
+            None,
+            100,
+            0,
+            0,
+            50,
+        );
+        insert_event(&conn, &ev);
+    }
+
+    let f_all = Filter {
+        from: utc("2026-11-26T10:00:00Z"),
+        to: utc("2026-11-26T11:00:00Z"),
+        tool: None,
+        provider: None,
+        project: None,
+    };
+    let d_all = dashboard(&conn, &f_all, &tz).unwrap();
+    let s_all = sessions(&conn, &f_all).unwrap();
+    assert_eq!(s_all.len(), 1);
+    assert_eq!(s_all[0].active_secs, 300);
+    assert!((d_all.kpis.active_secs.value - 300.0).abs() < 1e-9);
+
+    let f_google = Filter {
+        provider: Some(Provider::Google),
+        ..f_all.clone()
+    };
+    let d_google = dashboard(&conn, &f_google, &tz).unwrap();
+    let s_google = sessions(&conn, &f_google).unwrap();
+    assert_eq!(s_google[0].active_secs, 240);
+    assert!((d_google.kpis.active_secs.value - 240.0).abs() < 1e-9);
+
+    let f_anthropic = Filter {
+        provider: Some(Provider::Anthropic),
+        ..f_all.clone()
+    };
+    let d_anthropic = dashboard(&conn, &f_anthropic, &tz).unwrap();
+    let s_anthropic = sessions(&conn, &f_anthropic).unwrap();
+    assert_eq!(s_anthropic[0].active_secs, 240);
+    assert!((d_anthropic.kpis.active_secs.value - 240.0).abs() < 1e-9);
+
+    // Caso 2 de Carbon: eventos cada 4 min alternando google y anthropic -> 720 s sin filtro, 300 s con google
+    let base2 = utc("2026-11-26T12:00:00Z");
+    for (idx, provider) in [
+        Provider::Google,
+        Provider::Anthropic,
+        Provider::Google,
+        Provider::Anthropic,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let model = match provider {
+            Provider::Google => "gemini-4-neon-xhigh",
+            _ => "claude-opus-5-5",
+        };
+        let ev = make_event(
+            &format!("ag:mix2:{idx}"),
+            Tool::Antigravity,
+            provider,
+            model,
+            base2 + Duration::minutes((idx as i64) * 4),
+            "conv-2",
+            None,
+            100,
+            0,
+            0,
+            50,
+        );
+        insert_event(&conn, &ev);
+    }
+
+    let f2_all = Filter {
+        from: utc("2026-11-26T12:00:00Z"),
+        to: utc("2026-11-26T13:00:00Z"),
+        tool: None,
+        provider: None,
+        project: None,
+    };
+    let d2_all = dashboard(&conn, &f2_all, &tz).unwrap();
+    let s2_all = sessions(&conn, &f2_all).unwrap();
+    assert_eq!(s2_all[0].active_secs, 720);
+    assert!((d2_all.kpis.active_secs.value - 720.0).abs() < 1e-9);
+
+    let f2_google = Filter {
+        provider: Some(Provider::Google),
+        ..f2_all.clone()
+    };
+    let d2_google = dashboard(&conn, &f2_google, &tz).unwrap();
+    let s2_google = sessions(&conn, &f2_google).unwrap();
+    assert_eq!(s2_google[0].active_secs, 300);
+    assert!((d2_google.kpis.active_secs.value - 300.0).abs() < 1e-9);
+
+    // Caso 3: mezcla de proyectos y cruce de hora (el hueco entre horas parte del max last_ts previo)
+    for (idx, (ts, proj)) in [
+        (utc("2026-11-26T14:00:00Z"), "Alpha"),
+        (utc("2026-11-26T14:02:00Z"), "Beta"),
+        (utc("2026-11-26T14:59:00Z"), "Alpha"),
+        (utc("2026-11-26T15:01:00Z"), "Beta"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let ev = make_event(
+            &format!("cc:proj:{idx}"),
+            Tool::ClaudeCode,
+            Provider::Anthropic,
+            "claude-opus-5-5",
+            ts,
+            "conv-3",
+            Some(proj),
+            100,
+            0,
+            0,
+            50,
+        );
+        insert_event(&conn, &ev);
+    }
+
+    let f3_all = Filter {
+        from: utc("2026-11-26T14:00:00Z"),
+        to: utc("2026-11-26T16:00:00Z"),
+        tool: None,
+        provider: None,
+        project: None,
+    };
+    let d3_all = dashboard(&conn, &f3_all, &tz).unwrap();
+    let s3_all = sessions(&conn, &f3_all).unwrap();
+    assert_eq!(s3_all[0].active_secs, 540);
+    assert!((d3_all.kpis.active_secs.value - 540.0).abs() < 1e-9);
+
+    let f3_beta = Filter {
+        project: Some("Beta".to_string()),
+        ..f3_all
+    };
+    let d3_beta = dashboard(&conn, &f3_beta, &tz).unwrap();
+    let s3_beta = sessions(&conn, &f3_beta).unwrap();
+    assert_eq!(s3_beta[0].active_secs, 300);
+    assert!((d3_beta.kpis.active_secs.value - 300.0).abs() < 1e-9);
+}
+
+#[test]
+fn filtro_redondea_bordes_a_hora_utc() {
+    let conn = open_memory().unwrap();
+    let tz = Utc;
+
+    // Caso 1 de Carbon: now = 2026-11-27T19:52:10Z, from = 20T19:52:10Z, to = 27T19:52:10Z, evento en 20T19:55:00Z (5,00 $)
+    let ev1 = make_event(
+        "cc:edge1:1",
+        Tool::ClaudeCode,
+        Provider::Anthropic,
+        "claude-opus-5-5",
+        utc("2026-11-20T19:55:00Z"),
+        "s-edge-1",
+        Some("Alpha"),
+        100,
+        0,
+        0,
+        50,
+    );
+    insert_event_with_cost(&conn, &ev1, Some(5.0), CostKind::ApiEquivalent);
+
+    let now1 = utc("2026-11-27T19:52:10Z");
+    let f1 = Filter {
+        from: utc("2026-11-20T19:52:10Z"),
+        to: now1,
+        tool: None,
+        provider: None,
+        project: None,
+    };
+
+    let d1 = dashboard(&conn, &f1, &tz).unwrap();
+    assert!((d1.kpis.turns.value - 1.0).abs() < 1e-9);
+    assert_eq!(d1.kpis.sessions, 1);
+    // El periodo anterior termina en 2026-11-20T19:00:00Z, así que no debe robar el evento de 19:55:00Z
+    assert_eq!(d1.kpis.turns.delta_pct, None);
+
+    let c1 = costs(&conn, &f1, &tz, now1).unwrap();
+    assert!((c1.api_equivalent_usd - 5.0).abs() < 1e-9);
+    assert_eq!(c1.by_project.len(), 1);
+    assert_eq!(c1.by_project[0].sessions, 1);
+    let p1_json = serde_json::to_value(&c1.by_project[0]).unwrap();
+    assert!((p1_json["usd"].as_f64().unwrap() - 5.0).abs() < 1e-9);
+
+    let s1 = sessions(&conn, &f1).unwrap();
+    assert_eq!(s1.len(), 1);
+
+    // Caso 2 de Carbon: from = 19:10:00Z, to = 19:52:10Z, evento en 19:40:00Z
+    let ev2 = make_event(
+        "cc:edge2:1",
+        Tool::ClaudeCode,
+        Provider::Anthropic,
+        "claude-opus-5-5",
+        utc("2026-11-27T19:40:00Z"),
+        "s-edge-2",
+        Some("Beta"),
+        100,
+        0,
+        0,
+        50,
+    );
+    insert_event_with_cost(&conn, &ev2, Some(2.0), CostKind::ApiEquivalent);
+
+    let f2 = Filter {
+        from: utc("2026-11-27T19:10:00Z"),
+        to: utc("2026-11-27T19:52:10Z"),
+        tool: None,
+        provider: None,
+        project: None,
+    };
+    let d2 = dashboard(&conn, &f2, &tz).unwrap();
+    assert!((d2.kpis.turns.value - 1.0).abs() < 1e-9);
+    assert_eq!(d2.kpis.sessions, 1);
+
+    let c2 = costs(&conn, &f2, &tz, now1).unwrap();
+    assert!((c2.api_equivalent_usd - 2.0).abs() < 1e-9);
+
+    let s2 = sessions(&conn, &f2).unwrap();
+    assert_eq!(s2.len(), 1);
+
+    // Consistencia en el borde superior `to`: to = 19:30:00Z redondea arriba a 20:00:00Z en las 3 tablas
+    let f3 = Filter {
+        from: utc("2026-11-27T18:00:00Z"),
+        to: utc("2026-11-27T19:30:00Z"),
+        tool: None,
+        provider: None,
+        project: None,
+    };
+    let d3 = dashboard(&conn, &f3, &tz).unwrap();
+    let c3 = costs(&conn, &f3, &tz, now1).unwrap();
+    let s3 = sessions(&conn, &f3).unwrap();
+    assert!((d3.kpis.turns.value - 1.0).abs() < 1e-9);
+    assert_eq!(d3.kpis.sessions, 1);
+    assert!((c3.api_equivalent_usd - 2.0).abs() < 1e-9);
+    assert_eq!(s3.len(), 1);
+}
+
+#[test]
+fn by_project_sin_precio_es_null_y_media_solo_con_precio() {
+    let conn = open_memory().unwrap();
+    let tz = Utc;
+    let now = utc("2026-11-27T00:00:00Z");
+
+    // Proyecto "Alpha": 1 sesión con precio (10 $) + 9 sesiones unknown (NULL)
+    let alpha_priced = make_event(
+        "cc:alpha:priced",
+        Tool::ClaudeCode,
+        Provider::Anthropic,
+        "claude-opus-5-5",
+        utc("2026-11-26T10:00:00Z"),
+        "s-alpha-priced",
+        Some("Alpha"),
+        1_000,
+        0,
+        0,
+        100,
+    );
+    insert_event_with_cost(&conn, &alpha_priced, Some(10.0), CostKind::ApiEquivalent);
+    for i in 0..9 {
+        let ev = make_event(
+            &format!("ag:alpha:unk:{i}"),
+            Tool::Antigravity,
+            Provider::Google,
+            "gemini-flash-worker-agy",
+            utc("2026-11-26T11:00:00Z") + Duration::minutes(i),
+            &format!("s-alpha-unk-{i}"),
+            Some("Alpha"),
+            500,
+            0,
+            0,
+            50,
+        );
+        insert_event_with_cost(&conn, &ev, None, CostKind::Unknown);
+    }
+
+    // Proyecto "SinPrecio": 10 sesiones todas unknown
+    for i in 0..10 {
+        let ev = make_event(
+            &format!("ag:sinprecio:{i}"),
+            Tool::Antigravity,
+            Provider::Google,
+            "gemini-flash-worker-agy",
+            utc("2026-11-26T12:00:00Z") + Duration::minutes(i),
+            &format!("s-sinprecio-{i}"),
+            Some("SinPrecio"),
+            500,
+            0,
+            0,
+            50,
+        );
+        insert_event_with_cost(&conn, &ev, None, CostKind::Unknown);
+    }
+
+    // Proyecto "Gratis": 2 sesiones con tarifa real 0,00 $
+    for i in 0..2 {
+        let ev = make_event(
+            &format!("oc:gratis:{i}"),
+            Tool::Opencode,
+            Provider::Other,
+            "deepseek-flash-free",
+            utc("2026-11-26T13:00:00Z") + Duration::minutes(i),
+            &format!("s-gratis-{i}"),
+            Some("Gratis"),
+            500,
+            0,
+            0,
+            50,
+        );
+        insert_event_with_cost(&conn, &ev, Some(0.0), CostKind::Real);
+    }
+
+    let f = Filter {
+        from: utc("2026-11-26T00:00:00Z"),
+        to: now,
+        tool: None,
+        provider: None,
+        project: None,
+    };
+    let c = costs(&conn, &f, &tz, now).unwrap();
+
+    let alpha_row = c.by_project.iter().find(|p| p.project == "Alpha").unwrap();
+    assert_eq!(alpha_row.sessions, 10);
+    assert!((alpha_row.usd.unwrap() - 10.0).abs() < 1e-9);
+    assert!((alpha_row.avg_per_session.unwrap() - 10.0).abs() < 1e-9);
+
+    let sin_precio_row = c
+        .by_project
+        .iter()
+        .find(|p| p.project == "SinPrecio")
+        .unwrap();
+    assert_eq!(sin_precio_row.sessions, 10);
+    assert_eq!(sin_precio_row.usd, None);
+    assert_eq!(sin_precio_row.avg_per_session, None);
+
+    let gratis_row = c.by_project.iter().find(|p| p.project == "Gratis").unwrap();
+    assert_eq!(gratis_row.sessions, 2);
+    assert!((gratis_row.usd.unwrap() - 0.0).abs() < 1e-9);
+    assert!((gratis_row.avg_per_session.unwrap() - 0.0).abs() < 1e-9);
+
+    let by_proj_json = serde_json::to_value(&c.by_project).unwrap();
+    let arr = by_proj_json.as_array().unwrap();
+    assert_eq!(arr.len(), 3);
+
+    let alpha = arr.iter().find(|p| p["project"] == "Alpha").unwrap();
+    assert_eq!(alpha["sessions"], 10);
+    assert!((alpha["usd"].as_f64().unwrap() - 10.0).abs() < 1e-9);
+    assert!((alpha["avgPerSession"].as_f64().unwrap() - 10.0).abs() < 1e-9);
+
+    let sin_precio = arr.iter().find(|p| p["project"] == "SinPrecio").unwrap();
+    assert_eq!(sin_precio["sessions"], 10);
+    assert!(sin_precio["usd"].is_null());
+    assert!(sin_precio["avgPerSession"].is_null());
+
+    let gratis = arr.iter().find(|p| p["project"] == "Gratis").unwrap();
+    assert_eq!(gratis["sessions"], 2);
+    assert!((gratis["usd"].as_f64().unwrap() - 0.0).abs() < 1e-9);
+    assert!((gratis["avgPerSession"].as_f64().unwrap() - 0.0).abs() < 1e-9);
+}

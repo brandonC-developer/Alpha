@@ -279,25 +279,32 @@ pub fn generate_synthetic_events(
             let ep = ts.timestamp();
             let bit = 1_i64 << ts.minute();
 
-            let key = (tool, provider, project, hour_utc);
-            if let Some(acc) = batch.get_mut(&key) {
-                acc.events += 1;
-                acc.last_ts = ts_str;
-                acc.active_secs += (ep - acc.last_ep).clamp(0, 300);
-                acc.last_ep = ep;
-                acc.minute_mask |= bit;
-            } else {
-                batch.insert(
-                    key,
-                    SynAcc {
-                        events: 1,
-                        first_ts: ts_str.clone(),
-                        last_ts: ts_str,
-                        last_ep: ep,
-                        active_secs: 0,
-                        minute_mask: bit,
-                    },
-                );
+            for (prov, proj) in [
+                (provider, project),
+                (provider, "*"),
+                ("*", project),
+                ("*", "*"),
+            ] {
+                let key = (tool, prov, proj, hour_utc.clone());
+                if let Some(acc) = batch.get_mut(&key) {
+                    acc.events += 1;
+                    acc.last_ts = ts_str.clone();
+                    acc.active_secs += (ep - acc.last_ep).clamp(0, 300);
+                    acc.last_ep = ep;
+                    acc.minute_mask |= bit;
+                } else {
+                    batch.insert(
+                        key,
+                        SynAcc {
+                            events: 1,
+                            first_ts: ts_str.clone(),
+                            last_ts: ts_str.clone(),
+                            last_ep: ep,
+                            active_secs: 0,
+                            minute_mask: bit,
+                        },
+                    );
+                }
             }
         }
         for ((tool, provider, project, hour_utc), acc) in batch {

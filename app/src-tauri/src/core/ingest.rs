@@ -397,6 +397,35 @@ where
         minute_mask: i64,
     }
 
+    fn update_group(
+        groups: &mut BTreeMap<(String, String, String), GroupAcc>,
+        key: (String, String, String),
+        ts_str: &str,
+        ep: i64,
+        bit: i64,
+    ) {
+        if let Some(acc) = groups.get_mut(&key) {
+            acc.events += 1;
+            acc.last_ts.clear();
+            acc.last_ts.push_str(ts_str);
+            acc.active_secs += (ep - acc.last_ep).clamp(0, 300);
+            acc.last_ep = ep;
+            acc.minute_mask |= bit;
+        } else {
+            groups.insert(
+                key,
+                GroupAcc {
+                    events: 1,
+                    first_ts: ts_str.to_owned(),
+                    last_ts: ts_str.to_owned(),
+                    last_ep: ep,
+                    active_secs: 0,
+                    minute_mask: bit,
+                },
+            );
+        }
+    }
+
     let mut delete_stmt =
         conn.prepare("DELETE FROM session_hour WHERE session_id = ?1 AND hour_utc = ?2")?;
     let mut select_stmt = conn.prepare(
@@ -441,25 +470,17 @@ where
             let ep = ts.timestamp();
             let bit = 1_i64 << ts.minute();
 
-            let key = (tool, provider, project);
-            if let Some(acc) = groups.get_mut(&key) {
-                acc.events += 1;
-                acc.last_ts = ts_str;
-                acc.active_secs += (ep - acc.last_ep).clamp(0, 300);
-                acc.last_ep = ep;
-                acc.minute_mask |= bit;
-            } else {
-                groups.insert(
-                    key,
-                    GroupAcc {
-                        events: 1,
-                        first_ts: ts_str.clone(),
-                        last_ts: ts_str,
-                        last_ep: ep,
-                        active_secs: 0,
-                        minute_mask: bit,
-                    },
-                );
+            let variants = [
+                (tool.clone(), provider.clone(), project.clone()),
+                (tool.clone(), provider, "*".to_string()),
+                (tool.clone(), "*".to_string(), project),
+                (tool, "*".to_string(), "*".to_string()),
+            ];
+            for (idx, key) in variants.iter().enumerate() {
+                if variants[..idx].contains(key) {
+                    continue;
+                }
+                update_group(&mut groups, key.clone(), &ts_str, ep, bit);
             }
         }
 

@@ -207,9 +207,9 @@ pub struct ToolCost {
 #[serde(rename_all = "camelCase")]
 pub struct ProjectCost {
     pub project: String,
-    pub usd: f64,
+    pub usd: Option<f64>,
     pub sessions: u64,
-    pub avg_per_session: f64,
+    pub avg_per_session: Option<f64>,
 }
 
 /// Proyección del gasto real y equivalente API al cierre del mes local en curso.
@@ -353,6 +353,7 @@ fn dashboard_inner<Tz: TimeZone>(
     if f.from >= f.to {
         return Ok(empty_dashboard());
     }
+    let f = &normalize_filter(f);
 
     let prev_filter = previous_filter(f);
 
@@ -542,6 +543,14 @@ pub fn costs<Tz: TimeZone>(
     tz: &Tz,
     now: DateTime<Utc>,
 ) -> Result<CostsView> {
+    let norm;
+    let f = if f.from < f.to {
+        norm = normalize_filter(f);
+        &norm
+    } else {
+        f
+    };
+
     let rows = if f.from < f.to {
         query_hourly_agg(conn, f)?
     } else {
@@ -564,7 +573,7 @@ pub fn costs<Tz: TimeZone>(
     }
     let mut by_model_acc: HashMap<String, ModelCostAcc> = HashMap::new();
     let mut by_tool_acc: HashMap<Tool, (f64, u64)> = HashMap::new();
-    let mut by_project_usd: HashMap<String, f64> = HashMap::new();
+    let mut by_project_acc: HashMap<String, (f64, u64)> = HashMap::new();
     let mut unpriced_acc: HashMap<String, u64> = HashMap::new();
 
     for row in &rows {
@@ -603,7 +612,13 @@ pub fn costs<Tz: TimeZone>(
         t.0 += row.cost_real + row.cost_equiv;
         t.1 += priced_turns;
 
-        *by_project_usd.entry(row.project.clone()).or_insert(0.0) += row.cost_real + row.cost_equiv;
+        let p = by_project_acc
+            .entry(row.project.clone())
+            .or_insert((0.0, 0));
+        if priced_turns > 0 {
+            p.0 += row.cost_real + row.cost_equiv;
+            p.1 += priced_turns;
+        }
 
         if row.unpriced > 0 {
             *unpriced_acc.entry(row.model.clone()).or_insert(0) += row.unpriced;
@@ -684,31 +699,46 @@ pub fn costs<Tz: TimeZone>(
     } else {
         HashMap::new()
     };
-    let mut all_projects: BTreeMap<String, (f64, u64)> = BTreeMap::new();
-    for (project, usd) in by_project_usd {
-        all_projects.entry(project).or_insert((0.0, 0)).0 += usd;
+    let mut all_projects: BTreeMap<String, (f64, u64, u64, u64)> = BTreeMap::new();
+    for (project, (usd, priced_turns)) in by_project_acc {
+        let entry = all_projects.entry(project).or_insert((0.0, 0, 0, 0));
+        entry.0 += usd;
+        entry.1 += priced_turns;
     }
-    for (project, sessions) in sessions_by_project {
-        all_projects.entry(project).or_insert((0.0, 0)).1 = sessions;
+    for (project, (sessions, priced_sessions)) in sessions_by_project {
+        let entry = all_projects.entry(project).or_insert((0.0, 0, 0, 0));
+        entry.2 = sessions;
+        entry.3 = priced_sessions;
     }
     let mut by_project: Vec<ProjectCost> = all_projects
         .into_iter()
-        .map(|(project, (usd, sessions))| ProjectCost {
-            project,
-            usd,
-            sessions,
-            avg_per_session: if sessions > 0 {
-                usd / sessions as f64
-            } else {
-                0.0
+        .map(
+            |(project, (usd_sum, priced_turns, sessions, priced_sessions))| {
+                let (usd, avg_per_session) = if priced_turns > 0 && priced_sessions > 0 {
+                    (Some(usd_sum), Some(usd_sum / priced_sessions as f64))
+                } else if priced_turns > 0 {
+                    (Some(usd_sum), None)
+                } else {
+                    (None, None)
+                };
+                ProjectCost {
+                    project,
+                    usd,
+                    sessions,
+                    avg_per_session,
+                }
             },
-        })
+        )
         .collect();
     by_project.sort_by(|a, b| {
-        b.usd
-            .total_cmp(&a.usd)
-            .then_with(|| b.sessions.cmp(&a.sessions))
-            .then_with(|| a.project.cmp(&b.project))
+        match (a.usd, b.usd) {
+            (Some(au), Some(bu)) => bu.total_cmp(&au),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+        .then_with(|| b.sessions.cmp(&a.sessions))
+        .then_with(|| a.project.cmp(&b.project))
     });
 
     let mut unpriced: Vec<UnpricedModel> = unpriced_acc
@@ -739,6 +769,7 @@ pub fn sessions(conn: &Connection, f: &Filter) -> Result<Vec<SessionRow>> {
     if f.from >= f.to {
         return Ok(Vec::new());
     }
+    let f = &normalize_filter(f);
 
     let (where_sql, params) = build_event_where(f);
     let sql = format!(
@@ -990,6 +1021,35 @@ fn empty_dashboard() -> Dashboard {
     }
 }
 
+fn floor_hour_utc(ts: DateTime<Utc>) -> DateTime<Utc> {
+    ts.with_minute(0)
+        .and_then(|d| d.with_second(0))
+        .and_then(|d| d.with_nanosecond(0))
+        .unwrap_or(ts)
+}
+
+fn ceil_hour_utc(ts: DateTime<Utc>) -> DateTime<Utc> {
+    let floored = floor_hour_utc(ts);
+    if ts == floored {
+        floored
+    } else {
+        floored.checked_add_signed(Duration::hours(1)).unwrap_or(ts)
+    }
+}
+
+fn normalize_filter(f: &Filter) -> Filter {
+    if f.from >= f.to {
+        return f.clone();
+    }
+    Filter {
+        from: floor_hour_utc(f.from),
+        to: ceil_hour_utc(f.to),
+        tool: f.tool,
+        provider: f.provider,
+        project: f.project.clone(),
+    }
+}
+
 fn previous_filter(f: &Filter) -> Filter {
     let dur = f.to - f.from;
     Filter {
@@ -1141,6 +1201,31 @@ fn build_dimension_where(f: &Filter) -> (String, Vec<Value>) {
     let mut clauses = Vec::new();
     let mut params = Vec::new();
     push_dimension_filters(f, &mut clauses, &mut params, true);
+    (clauses.join(" AND "), params)
+}
+
+fn build_session_hour_where(f: &Filter, include_range: bool) -> (String, Vec<Value>) {
+    let mut clauses = Vec::with_capacity(5);
+    let mut params = Vec::with_capacity(5);
+    if include_range {
+        clauses.push("hour_utc >= ?1".to_string());
+        clauses.push("hour_utc < ?2".to_string());
+        params.push(Value::Text(fmt_utc(f.from)));
+        params.push(Value::Text(fmt_utc(f.to)));
+    }
+    let idx = params.len() + 1;
+    clauses.push(format!("provider = ?{idx}"));
+    params.push(Value::Text(
+        f.provider.map_or("*", |p| p.as_str()).to_string(),
+    ));
+    let idx = params.len() + 1;
+    clauses.push(format!("project = ?{idx}"));
+    params.push(Value::Text(f.project.as_deref().unwrap_or("*").to_string()));
+    if let Some(tool) = f.tool {
+        let idx = params.len() + 1;
+        clauses.push(format!("tool = ?{idx}"));
+        params.push(Value::Text(tool.as_str().to_string()));
+    }
     (clauses.join(" AND "), params)
 }
 
@@ -1599,22 +1684,12 @@ fn query_session_metrics<Tz: TimeZone>(
         });
     }
 
-    let (where_sql, params) = if full_range {
-        build_dimension_where(f)
-    } else {
-        build_hourly_where(f)
-    };
-    let sql = if where_sql.is_empty() {
+    let (where_sql, params) = build_session_hour_where(f, !full_range);
+    let sql = format!(
         "SELECT session_id, tool, hour_utc, first_ts, last_ts, active_secs, minute_mask
-         FROM session_hour"
-            .to_string()
-    } else {
-        format!(
-            "SELECT session_id, tool, hour_utc, first_ts, last_ts, active_secs, minute_mask
-             FROM session_hour
-             WHERE {where_sql}"
-        )
-    };
+         FROM session_hour
+         WHERE {where_sql}"
+    );
 
     let mut stmt = conn.prepare_cached(&sql)?;
     let mut rows = stmt.query(params_from_iter(params))?;
@@ -1715,10 +1790,10 @@ fn query_session_metrics<Tz: TimeZone>(
             *active_by_hour.entry(first.hour_ep).or_insert(0) += first.active_secs;
         }
 
-        for i in 1..scratch.len() {
-            let prev = &scratch[i - 1];
-            let curr = &scratch[i];
-            let inter_gap = (curr.first_ep - prev.last_ep).clamp(0, 300) as u64;
+        let mut max_last_ep = first.last_ep;
+        for curr in &scratch[1..] {
+            let inter_gap = (curr.first_ep - max_last_ep).clamp(0, 300) as u64;
+            max_last_ep = max_last_ep.max(curr.last_ep);
             let added = curr.active_secs + inter_gap;
             total_active_secs += added;
             active_by_tool_arr[curr.tool_idx as usize] += added;
@@ -1801,22 +1876,12 @@ fn query_total_active_secs(conn: &Connection, f: &Filter) -> Result<u64> {
     if empty_range {
         return Ok(0);
     }
-    let (where_sql, params) = if full_range {
-        build_dimension_where(f)
-    } else {
-        build_hourly_where(f)
-    };
-    let sql = if where_sql.is_empty() {
+    let (where_sql, params) = build_session_hour_where(f, !full_range);
+    let sql = format!(
         "SELECT session_id, hour_utc, first_ts, last_ts, active_secs
-         FROM session_hour"
-            .to_string()
-    } else {
-        format!(
-            "SELECT session_id, hour_utc, first_ts, last_ts, active_secs
-             FROM session_hour
-             WHERE {where_sql}"
-        )
-    };
+         FROM session_hour
+         WHERE {where_sql}"
+    );
     let mut stmt = conn.prepare_cached(&sql)?;
     let mut rows = stmt.query(params_from_iter(params))?;
 
@@ -1876,8 +1941,10 @@ fn query_total_active_secs(conn: &Connection, f: &Filter) -> Result<u64> {
             scratch.sort_unstable_by_key(|e| (e.0, e.1));
         }
         total += scratch[0].2;
-        for i in 1..scratch.len() {
-            total += scratch[i].2 + (scratch[i].0 - scratch[i - 1].1).clamp(0, 300) as u64;
+        let mut max_last_ep = scratch[0].1;
+        for curr in &scratch[1..] {
+            total += curr.2 + (curr.0 - max_last_ep).clamp(0, 300) as u64;
+            max_last_ep = max_last_ep.max(curr.1);
         }
     }
     Ok(total)
@@ -2085,10 +2152,12 @@ fn compute_plan_yields(
     Ok(yields)
 }
 
-fn query_sessions_by_project(conn: &Connection, f: &Filter) -> Result<HashMap<String, u64>> {
+fn query_sessions_by_project(conn: &Connection, f: &Filter) -> Result<HashMap<String, (u64, u64)>> {
     let (where_sql, params) = build_event_where(f);
     let sql = format!(
-        "SELECT COALESCE(project, ''), COUNT(DISTINCT session_id)
+        "SELECT COALESCE(project, ''),
+                COUNT(DISTINCT session_id),
+                COUNT(DISTINCT CASE WHEN cost_usd IS NOT NULL AND cost_kind != 'unknown' THEN session_id END)
          FROM usage_event
          WHERE {where_sql}
          GROUP BY COALESCE(project, '')"
@@ -2099,7 +2168,8 @@ fn query_sessions_by_project(conn: &Connection, f: &Filter) -> Result<HashMap<St
     while let Some(r) = rows.next()? {
         let project: String = r.get(0)?;
         let count: i64 = r.get(1)?;
-        out.insert(project, count.max(0) as u64);
+        let priced_count: i64 = r.get(2)?;
+        out.insert(project, (count.max(0) as u64, priced_count.max(0) as u64));
     }
     Ok(out)
 }
@@ -2150,13 +2220,13 @@ fn compute_month_metrics<Tz: TimeZone>(
         })?
         .with_timezone(&Utc);
 
-    let month_filter = Filter {
+    let month_filter = normalize_filter(&Filter {
         from: month_start_utc,
         to: now,
         tool: f.tool,
         provider: f.provider,
         project: f.project.clone(),
-    };
+    });
     let (where_sql, params) = build_hourly_where(&month_filter);
     let sql = format!(
         "SELECT COALESCE(SUM(cost_real), 0.0), COALESCE(SUM(cost_equiv), 0.0)
@@ -2202,7 +2272,7 @@ fn compute_month_metrics<Tz: TimeZone>(
                     "SELECT COALESCE(SUM(cost_real), 0.0)
                      FROM hourly_agg
                      WHERE hour_utc >= ?1 AND hour_utc < ?2 AND plan_id = 'deepseek'",
-                    [&fmt_utc(month_start_utc), &fmt_utc(now)],
+                    [&fmt_utc(month_filter.from), &fmt_utc(month_filter.to)],
                     |r| r.get(0),
                 )?
             } else {

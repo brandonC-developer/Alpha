@@ -610,7 +610,7 @@ fn reingestar_no_cambia_session_hour() {
     assert_eq!(stats1.new_events, 3);
 
     let snapshot1 = dump_session_hour(&conn);
-    assert_eq!(snapshot1.len(), 2);
+    assert_eq!(snapshot1.len(), 8);
 
     // 1. Segundo scan_all sin cambios -> session_hour idéntico
     let stats2 = scan_all(&mut conn, &collectors, &|_, _| {}, fixed_now()).unwrap();
