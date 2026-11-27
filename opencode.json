@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/deepseek-v4.1-flash-free",
+  "instructions": [".agents/rules/*.md"],
+  "permission": {
+    "edit": {
+      "*": "allow",
+      "docs/**": "deny",
+      "AGENTS.md": "deny",
+      ".agents/**": "deny",
+      ".opencode/**": "deny",
+      "opencode.json": "deny",
+      "HXqFtqPXgAAf9KE.jpg": "deny"
+    },
+    "bash": {
+      "*": "allow",
+      "git push*": "deny",
+      "*--no-verify*": "deny"
+    },
+    "external_directory": "deny"
+  }
+}

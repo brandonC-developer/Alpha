@@ -45,7 +45,7 @@ Regla común: **solo se deserializan los campos de estas tablas.** Los structs d
 | `output_tokens` | `output` | |
 | — | `reasoning = 0` | El log no lo da por separado |
 
-### 1.3 opencode (DeepSeek y Ollama)
+### 1.3 opencode (DeepSeek)
 
 **Pendiente de confirmar en la fase 0.** opencode no está instalado. Cuando se instale, la fase 0 anota en `handoff/fase-0-informe.md`: la carpeta de datos en Windows, si guarda las sesiones en archivos JSON o en SQLite, y un ejemplo de mensaje del asistente **sin contenido**. Con eso Claude completa esta sección antes de la fase 6. Se espera, según la documentación pública de opencode, un mensaje con `id`, `sessionID`, `modelID`, `providerID`, `time.created` y `tokens { input, output, reasoning, cache { read, write } }`.
 
@@ -56,7 +56,6 @@ Regla común: **solo se deserializan los campos de estas tablas.** Los structs d
 | `claude-code` | `anthropic` | `claude-pro` | `api_equivalent` (o `unknown` sin precio) |
 | `antigravity` | `google` | `google-ai-pro` | `api_equivalent` (o `unknown`) |
 | `opencode` | `deepseek` | `deepseek` | `real` (o `unknown`) |
-| `opencode` | `local` | `local` | `real`, coste 0 |
 | cualquiera | `other` | según la herramienta | `unknown` |
 
 ## 3. Precios iniciales (`resources/pricing.json`)
@@ -76,8 +75,8 @@ Formato:
 | `claude-opus-5-5*` | 4,00 | 20,00 | 5,00 | 0,20 | no | Página de precios de Anthropic y varias fuentes coincidentes |
 | `claude-sonnet-5-5*` | 2,00 | 10,00 | 2,50 | 0,10 | **sí** (una sola fuente; caché = 1,25× y 0,05× de la entrada, como Opus) | DevelopersDigest |
 | `gemini-4-*` | — | — | — | — | — | **Sin precio público de API** para Neon, Hydrogen ni Carbon. Ver 3.2 |
-| `deepseek-v4-flash*` | 0,14 | 0,28 | 0 | 0,0028 | **sí** (DeepSeek cambió precios en 2026 y tiene tarifas de hora punta) | api-docs.deepseek.com |
-| `qwen*`, `gemma*`, `llama*` (proveedor `local`) | 0 | 0 | 0 | 0 | no | Local |
+| `deepseek-flash*`, `deepseek-v4-flash*` (alias retirado que DeepSeek sirve con el mismo modelo y precio) | 0,15 | 0,60 | 0 | 0,003 | **sí**: tarifa fuera de hora punta, vigente desde el 16/08/2026. En hora punta (01–04 y 06–10 UTC, de lunes a viernes) cuesta el doble. El gasto real exacto lo da el saldo | api-docs.deepseek.com/quick_start/pricing |
+| `*-free`, `big-pickle` (proveedor `other`, herramienta `opencode`) | 0 | 0 | 0 | 0 | no: modelos gratuitos de opencode Zen. Coste 0 real, no «sin precio» | opencode.ai/docs/zen |
 
 ### 3.2 Pendiente antes de la fase 3 (lo hace Claude)
 
@@ -121,7 +120,7 @@ Resultado esperado: 3 eventos (pasos 1, 8 y 9); el paso 8 con `input` 11873; el 
 | --- | --- | --- | --- | --- |
 | `window5h.<nivel>` | `<plan>:<inicio del bloque>` | `percent ≥ nivel` (80 y 95) | «Claude Pro: 80 % de la ventana de 5 h» | «Se reinicia a las 15:10. A este ritmo se agota a las 14:20.» (la segunda frase solo si hay `exhaustsAt`) |
 | `weekly.80` | `<plan>:<semana ISO>` | `percent ≥ 80` | «Google AI Pro: 80 % del límite semanal» | «Quedan N días para que se renueve por completo.» |
-| `budget.80` | `deepseek:<AAAA-MM>` | gasto real del mes ≥ 80 % del presupuesto | «DeepSeek: 8,10 $ de 10 $ este mes» | «Saldo: 8,42 $.» |
+| `budget.80` | `deepseek:<AAAA-MM>` | gasto real del mes ≥ 80 % del presupuesto | «DeepSeek: 4,05 $ de 5 $ este mes» | «Saldo: 0,95 $.» |
 | `anomaly` | `<session_id>` | sesión anómala | «Sesión fuera de lo normal en Antigravity» | «41,2 M tokens, 12× tu media. Ábrela en Sesiones.» |
 
 «Pausar avisos 1 h» (menú de la bandeja) guarda `alerts.paused_until` en `setting`; mientras dure, las alertas se registran pero no se notifican.

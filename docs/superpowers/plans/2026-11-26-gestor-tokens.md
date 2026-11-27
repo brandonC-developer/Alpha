@@ -21,7 +21,7 @@
 | **MVP** | Colectores de Claude Code y Antigravity, ingestión incremental, coste por registro, Panel | T1–T7, T10, T11 |
 | **Planes y alertas** | Ventanas de 5 h y semanal, calibración, ritmo, alertas, bandeja con % | T8, T9, T10 |
 | **Pantallas completas** | Costes, Sesiones, Planes, Fuentes, Ajustes | T12, T13 |
-| **Reserva barata** | Colector de opencode (DeepSeek y Ollama), saldo de DeepSeek, clave en el Administrador de credenciales | T14 |
+| **Reserva barata** | Colector de opencode (DeepSeek), saldo de DeepSeek, clave en el Administrador de credenciales | T14 |
 | **v1.0** | Exportar e importar (CSV, JSON, FOCUS), instalador NSIS, rendimiento comprobado, README | T15, T16 |
 | Después (no implementar) | Gemini CLI, Codex, receptor OTLP, actualizaciones automáticas, macOS/Linux | — |
 
@@ -54,7 +54,7 @@
 | **Mínimo privilegio** | Capabilities de Tauri mínimas; la interfaz no lee archivos | Guía de seguridad de Tauri 2 |
 | **Revisiones pequeñas** | Un commit por tarea; el revisor ve el diff de una fase | Estudio de Cisco/SmartBear: la eficacia cae por encima de 200–400 líneas por revisión |
 | **Contexto mínimo por agente** | Cada subagente lee solo su tarea y los contratos que cita | Liu et al. (Stanford, 2023), *Lost in the Middle*: los modelos usan peor la información en contextos largos |
-| **Del modelo barato al caro** | Niveles N1→N4 y escalado solo tras fallar | Chen et al. (Stanford, 2023), *FrugalGPT*; Ong et al. (UC Berkeley, 2024), *RouteLLM* |
+| **Del modelo barato al caro** | Niveles N2→N4 y escalado solo tras fallar | Chen et al. (Stanford, 2023), *FrugalGPT*; Ong et al. (UC Berkeley, 2024), *RouteLLM* |
 | **Decisiones registradas** | Decisiones en la spec y en `CHANGELOG.md` | Nygard, *Architecture Decision Records* |
 
 ### A.4 Investigación: alternativas evaluadas (noviembre de 2026)
@@ -82,8 +82,8 @@ Fuentes: [`docs/00-investigacion.md`](../../00-investigacion.md).
 - `dedup_key`: Claude Code `cc:<message.id>:<requestId>`; Antigravity `ag:<conversación>:<step_index>`; opencode `oc:<id del mensaje>`.
 - Tokens: `input` sin caché; `output` incluye razonamiento. Antigravity: `input = input_tokens − cache_read_tokens` (mínimo 0).
 - Coste: `(input×p.input + output×p.output + cache_write×p.cache_write + cache_read×p.cache_read) / 1_000_000`. Sin precio → `cost_usd = NULL`, `cost_kind = 'unknown'`.
-- `cost_kind`: plan `payg` → `real`; `subscription` → `api_equivalent`; `local` → `real` con coste 0.
-- Plan por evento: `claude-code` → `claude-pro`; `antigravity` → `google-ai-pro`; `opencode` + DeepSeek → `deepseek`; `opencode` + Ollama → `local`.
+- `cost_kind`: plan `payg` → `real`; `subscription` → `api_equivalent`.
+- Plan por evento: `claude-code` → `claude-pro`; `antigravity` → `google-ai-pro`; `opencode` + DeepSeek → `deepseek`.
 - Ventana de 5 h: empieza con el primer evento posterior al fin de la anterior y dura exactamente 5 h. Ventana semanal: las últimas 168 h.
 - Peso en ventanas = `cost_usd` (equivalente API). Eventos sin precio no pesan y se cuentan aparte.
 - Límite = media de las calibraciones (`usado / (porcentaje / 100)`). Sin calibrar → sin porcentaje.
@@ -173,11 +173,11 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 **Interfaces:**
 - Produce:
   - `enum Tool { ClaudeCode, Antigravity, Opencode }` con `as_str()` → `"claude-code" | "antigravity" | "opencode"` y `FromStr`.
-  - `enum Provider { Anthropic, Google, DeepSeek, Local, Other }` con `as_str()` → `"anthropic" | "google" | "deepseek" | "local" | "other"`.
-  - `fn provider_for(tool: Tool, model: &str, provider_hint: Option<&str>) -> Provider`: prefijo `claude-` → Anthropic; `gemini-` → Google; `provider_hint` `"deepseek"` → DeepSeek, `"ollama"` → Local; resto Other.
+  - `enum Provider { Anthropic, Google, DeepSeek, Other }` con `as_str()` → `"anthropic" | "google" | "deepseek" | "other"`.
+  - `fn provider_for(tool: Tool, model: &str, provider_hint: Option<&str>) -> Provider`: prefijo `claude-` → Anthropic; `gemini-` → Google; `provider_hint` `"deepseek"` → DeepSeek; resto Other (incluidos los modelos gratuitos de opencode, `provider_hint` `"opencode"`).
   - `struct UsageEvent` exactamente como la spec §8.2 (campos `pub`, `#[derive(Debug, Clone, PartialEq)]`).
   - `fn plan_for(tool: Tool, provider: Provider) -> &'static str` (tabla de Restricciones globales; `other` → el plan de la herramienta).
-  - `fn open_db(path: &Path) -> Result<Connection>` y `fn open_memory() -> Result<Connection>`: WAL, `foreign_keys = ON`, aplican `schema.sql` si `user_version = 0` y lo ponen a 1, y siembran las 4 filas de `plan` (`claude-pro` subscription 20 $, `google-ai-pro` subscription 0 $ hasta que el usuario la confirme, `deepseek` payg con presupuesto 10 $, `local` local) con `windows` `[{"name":"5h","hours":5},{"name":"weekly","hours":168}]` en las dos suscripciones y `[]` en el resto. `INSERT OR IGNORE`: nunca pisa lo que el usuario cambió.
+  - `fn open_db(path: &Path) -> Result<Connection>` y `fn open_memory() -> Result<Connection>`: WAL, `foreign_keys = ON`, aplican `schema.sql` si `user_version = 0` y lo ponen a 1, y siembran las 3 filas de `plan` (`claude-pro` subscription 20 $, `google-ai-pro` subscription 0 $ hasta que el usuario la confirme, `deepseek` payg con presupuesto 5 $) con `windows` `[{"name":"5h","hours":5},{"name":"weekly","hours":168}]` en las dos suscripciones y `[]` en el resto. `INSERT OR IGNORE`: nunca pisa lo que el usuario cambió.
   - `type Result<T> = std::result::Result<T, CoreError>` con `CoreError` (`thiserror`): `Db`, `Io`, `Parse { file, line, reason }`, `Secret`, `Http`.
   - `fn hours_between(a: DateTime<Utc>, b: DateTime<Utc>) -> f64` y `fn local_date<Tz: TimeZone>(ts: DateTime<Utc>, tz: &Tz) -> NaiveDate` en `time.rs`.
 - El esquema exacto está en `docs/03-arquitectura.md` §3.
@@ -187,19 +187,18 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 ```rust
 #[test] fn esquema_se_aplica_una_vez() { /* open_db dos veces sobre el mismo archivo temporal → user_version = 1 y sin error */ }
 #[test] fn tablas_existen() { /* las 10 tablas de 03-arquitectura §3 existen */ }
-#[test] fn planes_sembrados() { /* 4 filas en plan; cambiar monthly_fee_usd y reabrir → se conserva */ }
+#[test] fn planes_sembrados() { /* 3 filas en plan; cambiar monthly_fee_usd y reabrir → se conserva */ }
 #[test] fn plan_por_herramienta() {
     assert_eq!(plan_for(Tool::ClaudeCode, Provider::Anthropic), "claude-pro");
     assert_eq!(plan_for(Tool::Antigravity, Provider::Google), "google-ai-pro");
     assert_eq!(plan_for(Tool::Opencode, Provider::DeepSeek), "deepseek");
-    assert_eq!(plan_for(Tool::Opencode, Provider::Local), "local");
 }
 #[test] fn dedup_key_es_unica() { /* insertar dos filas con la misma dedup_key con INSERT OR IGNORE → 1 fila */ }
 #[test] fn provider_por_modelo() {
     assert_eq!(provider_for(Tool::ClaudeCode, "claude-opus-5-5", None), Provider::Anthropic);
     assert_eq!(provider_for(Tool::Antigravity, "gemini-4-neon-xhigh", None), Provider::Google);
     assert_eq!(provider_for(Tool::Opencode, "deepseek-v4-flash", Some("deepseek")), Provider::DeepSeek);
-    assert_eq!(provider_for(Tool::Opencode, "qwen3:4b", Some("ollama")), Provider::Local);
+    assert_eq!(provider_for(Tool::Opencode, "big-pickle", Some("opencode")), Provider::Other);
 }
 #[test] fn dia_local_de_un_instante_utc() {
     let tz = FixedOffset::west_opt(6 * 3600).unwrap();
@@ -329,7 +328,7 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 }
 #[test] fn razonamiento_no_se_cobra_dos_veces() { /* reasoning 271 no cambia el coste */ }
 #[test] fn sin_precio_es_unknown_y_null() { /* modelo "modelo-raro" → cost_usd NULL, cost_kind "unknown" */ }
-#[test] fn suscripcion_es_api_equivalent() { /* Claude Code → "api_equivalent"; opencode+deepseek → "real"; opencode+ollama → "real" con 0.0 */ }
+#[test] fn suscripcion_es_api_equivalent() { /* Claude Code → "api_equivalent"; opencode+deepseek → "real" */ }
 #[test] fn patron_mas_largo_gana() { /* "gemini-4-*" y "gemini-4-neon-*" → gana el segundo para "gemini-4-neon-high" */ }
 #[test] fn precio_por_fecha() { /* dos precios con valid_from distinto → cada evento usa el de su fecha */ }
 #[test] fn recalculo_solo_toca_eventos_afectados() { /* upsert de un precio de "claude-opus-5-5*" desde 2026-11-20 → solo cambian eventos de ese modelo desde esa fecha; RecalcResult cuadra con la suma antes y después; 1 fila en cost_recalc_log */ }
@@ -383,7 +382,7 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 
 **Interfaces:**
 - Produce:
-  - `struct Plan` y `enum PlanKind { Subscription, Payg, Local }` que leen las filas de `plan` sembradas en T2; `fn update_plan(conn, plan_id, monthly_fee_usd: f64, budget_usd: Option<f64>) -> Result<Plan>`.
+  - `struct Plan` y `enum PlanKind { Subscription, Payg }` que leen las filas de `plan` sembradas en T2; `fn update_plan(conn, plan_id, monthly_fee_usd: f64, budget_usd: Option<f64>) -> Result<Plan>`.
   - `fn current_block(points: &[(DateTime<Utc>, f64)], now: DateTime<Utc>, hours: i64) -> Option<Block>`; `Block { start, end, used: f64 }`. `points` ordenados.
   - `fn calibrate(conn, plan_id: &str, window: WindowName, percent: f64, now) -> Result<f64>` (devuelve el nuevo límite); `percent` en (0, 100].
   - `fn window_status(conn, plan_id: &str, now) -> Result<Vec<WindowStatus>>`; `WindowStatus { name, used, limit: Option<f64>, percent: Option<f64>, resetsAt: Option<DateTime<Utc>>, exhaustsAt: Option<DateTime<Utc>>, unpricedEvents: u64 }`.
@@ -530,7 +529,7 @@ test('fuente con errores', /* colector con 2 errores → "2 líneas no se pudier
 - [ ] **Paso 1: pruebas que fallan**
 
 ```rust
-#[test] fn opencode_deepseek_y_ollama() { /* fixture → un evento DeepSeek (plan deepseek, real) y uno Ollama (plan local, coste 0) */ }
+#[test] fn opencode_deepseek() { /* fixture → un evento DeepSeek (plan deepseek, real) y uno de opencode/deepseek-v4.1-flash-free (provider other, plan deepseek, real, 0 $) */ }
 #[test] fn balance_usd() { /* {"is_available":true,"balance_infos":[{"currency":"USD","total_balance":"8.42",…}]} → 8.42 */ }
 #[test] fn balance_malformado() { /* JSON sin balance_infos → Err(Parse) */ }
 #[test] #[ignore] fn keyring_ida_y_vuelta() { /* set → get → delete con un nombre de prueba; se ejecuta a mano en Windows */ }
@@ -586,4 +585,4 @@ test('fuente con errores', /* colector con 2 errores → "2 líneas no se pudier
 | §2.10 Exportar | T15 |
 | §8.9 Privacidad | T3, T4 (`no_guarda_contenido`), T10 (capabilities), T14 (keyring), T15 |
 | §8.10 Rendimiento | T7 (`panel_rapido`), T16 |
-| DeepSeek y local | T14 |
+| DeepSeek | T14 |

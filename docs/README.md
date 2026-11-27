@@ -1,6 +1,6 @@
 # Documentación: Gestor de Tokens
 
-App de escritorio para Windows (Tauri 2 + Rust + React) que mide los tokens y el coste de Claude Code, Antigravity y opencode (DeepSeek y Ollama), y vigila los límites de Claude Pro y Google AI Pro.
+App de escritorio para Windows (Tauri 2 + Rust + React) que mide los tokens y el coste de Claude Code, Antigravity y opencode (DeepSeek), y vigila los límites de Claude Pro y Google AI Pro.
 
 Claude escribe esta documentación; Antigravity la usa para programar la app en `app/`. Antigravity no edita nada de esta carpeta (ver `../AGENTS.md`).
 
@@ -11,7 +11,7 @@ Claude escribe esta documentación; Antigravity la usa para programar la app en 
 | El usuario, para lanzar la construcción | [01-fases.md](01-fases.md), fase 0 |
 | Antigravity, al abrir el workspace | [../AGENTS.md](../AGENTS.md) y la fase en curso de [01-fases.md](01-fases.md) |
 | Un subagente con una tarea | Su archivo en `../.agents/agents/` y la tarea en el plan |
-| opencode (reserva) | [../AGENTS.md](../AGENTS.md) y [02-agentes-y-modelos.md](02-agentes-y-modelos.md) §5 |
+| opencode (T13, T15) | [../AGENTS.md](../AGENTS.md) y [02-agentes-y-modelos.md](02-agentes-y-modelos.md) §4.2 y §5 |
 
 ## Índice
 
@@ -21,7 +21,7 @@ Claude escribe esta documentación; Antigravity la usa para programar la app en 
 | [Diseño](superpowers/specs/2026-11-26-gestor-tokens-design.md) | Qué es la app, objetivos, anti-objetivos, decisiones, coste de API |
 | [Plan de implementación](superpowers/plans/2026-11-26-gestor-tokens.md) | Alcance, casos de uso, buenas prácticas con su fuente y las 16 tareas con sus pruebas |
 | [01-fases.md](01-fases.md) | 8 fases con orden, agente, modelo, prompt y puerta |
-| [02-agentes-y-modelos.md](02-agentes-y-modelos.md) | Jerarquía N1–N4, peso y razonamiento por tarea, modelos locales, reserva DeepSeek |
+| [02-agentes-y-modelos.md](02-agentes-y-modelos.md) | Carga, modelo e intensidad de cada tarea; Claude, Antigravity y opencode (gratis → DeepSeek 5 $); evidencia |
 | [03-arquitectura.md](03-arquitectura.md) | Componentes, dependencias permitidas, esquema SQL exacto, seguridad, ADR |
 | [04-comandos.md](04-comandos.md) | Contrato de cada comando y evento de Tauri, con sus tipos |
 | [05-ui.md](05-ui.md) | Sistema visual, pantallas, estados, teclado, accesibilidad, bandeja |

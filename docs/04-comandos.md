@@ -6,8 +6,8 @@ La interfaz habla con Rust solo con estos comandos (`invoke`) y eventos (`listen
 
 ```ts
 export type Tool = 'claude-code' | 'antigravity' | 'opencode';
-export type Provider = 'anthropic' | 'google' | 'deepseek' | 'local' | 'other';
-export type PlanId = 'claude-pro' | 'google-ai-pro' | 'deepseek' | 'local';
+export type Provider = 'anthropic' | 'google' | 'deepseek' | 'other';
+export type PlanId = 'claude-pro' | 'google-ai-pro' | 'deepseek';
 export type CostKind = 'real' | 'api_equivalent' | 'unknown';
 export type WindowName = '5h' | 'weekly';
 
@@ -60,7 +60,7 @@ export interface Dashboard {
 
 ```ts
 export interface CostsView {
-  realUsd: number;                 // DeepSeek (+ local = 0)
+  realUsd: number;                 // DeepSeek
   apiEquivalentUsd: number;        // suscripciones
   feesUsd: number;                 // cuotas prorrateadas al rango
   yield: { planId: PlanId; name: string; feeUsd: number; equivalentUsd: number; ratio: number | null }[];
@@ -98,9 +98,9 @@ export interface WindowStatus {
   resetsAt: string | null; exhaustsAt: string | null; unpricedEvents: number;
 }
 export interface PlanView {
-  id: PlanId; name: string; kind: 'subscription' | 'payg' | 'local';
+  id: PlanId; name: string; kind: 'subscription' | 'payg';
   monthlyFeeUsd: number; budgetUsd: number | null;
-  windows: WindowStatus[];          // vacío en payg y local
+  windows: WindowStatus[];          // vacío en payg
   monthSpentUsd: number;            // real (payg) o equivalente (subscription)
   balanceUsd: number | null;        // solo deepseek
   tools: Tool[];

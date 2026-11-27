@@ -82,7 +82,7 @@ PRAGMA journal_mode = WAL;
 CREATE TABLE usage_event (
   dedup_key        TEXT PRIMARY KEY,
   tool             TEXT NOT NULL CHECK (tool IN ('claude-code','antigravity','opencode')),
-  provider         TEXT NOT NULL CHECK (provider IN ('anthropic','google','deepseek','local','other')),
+  provider         TEXT NOT NULL CHECK (provider IN ('anthropic','google','deepseek','other')),
   plan_id          TEXT NOT NULL REFERENCES plan(id),
   model            TEXT NOT NULL,
   ts_utc           TEXT NOT NULL,              -- ISO 8601 con Z
@@ -167,10 +167,10 @@ CREATE TABLE cost_recalc_log (
 );
 
 CREATE TABLE plan (
-  id              TEXT PRIMARY KEY,            -- 'claude-pro','google-ai-pro','deepseek','local'
+  id              TEXT PRIMARY KEY,            -- 'claude-pro','google-ai-pro','deepseek'
   name            TEXT NOT NULL,
   provider        TEXT NOT NULL,
-  kind            TEXT NOT NULL CHECK (kind IN ('subscription','payg','local')),
+  kind            TEXT NOT NULL CHECK (kind IN ('subscription','payg')),
   monthly_fee_usd REAL NOT NULL DEFAULT 0,
   budget_usd      REAL,
   windows         TEXT NOT NULL DEFAULT '[]'   -- JSON: [{"name":"5h","hours":5},{"name":"weekly","hours":168}]

@@ -3,7 +3,7 @@
 Este repositorio tiene dos autores con papeles separados:
 
 - **Claude (Anthropic) escribe toda la documentación**: `docs/`, `AGENTS.md`, `.agents/` y los mockups.
-- **Antigravity programa**: todo lo que hay en `app/`. opencode (DeepSeek o modelo local) solo actúa como reserva, con estas mismas reglas.
+- **Antigravity programa** todo lo que hay en `app/`, salvo T13 y T15, que hace **opencode** (modelo gratuito y, cuando se agota, DeepSeek de pago) con estas mismas reglas. Reparto completo: `docs/02-agentes-y-modelos.md` §2.
 
 Estas reglas se aplican siempre, a cualquier agente y subagente.
 
@@ -13,7 +13,7 @@ Estas reglas se aplican siempre, a cualquier agente y subagente.
 | --- | --- |
 | `app/**` | Crear, editar y borrar |
 | `handoff/**` | Crear y editar (preguntas e informes para Claude) |
-| `docs/**`, `AGENTS.md`, `.agents/**`, `HXqFtqPXgAAf9KE.jpg` | **Solo lectura.** Nunca los edites, ni para «arreglar» una errata |
+| `docs/**`, `AGENTS.md`, `.agents/**`, `opencode.json`, `.opencode/**`, `HXqFtqPXgAAf9KE.jpg` | **Solo lectura.** Nunca los edites, ni para «arreglar» una errata |
 | `%USERPROFILE%\.claude`, `.gemini`, carpeta de opencode | **Solo lectura**, y solo el código de la app al ejecutarse. Los agentes no copian su contenido a ningún sitio |
 
 Si la documentación está mal, es ambigua o contradice el código, **no la cambies**: escribe la duda en `handoff/preguntas.md` (formato en `docs/08-protocolo.md`) y sigue con lo que no dependa de ella.
@@ -55,8 +55,8 @@ Si dos fuentes se contradicen, gana la de número menor y lo anotas en `handoff/
 1. Una tarea falla sus pruebas **dos veces** con el subagente asignado → repítela con el nivel `pro`.
 2. Falla **dos veces más** con `pro` → para, escribe el bloqueo en `handoff/preguntas.md` y avisa al usuario. No improvises otra arquitectura.
 3. Nunca desactives, borres, marques `#[ignore]` ni debilites una prueba para que pase.
-4. En opencode (reserva): solo tareas `flash` (T11–T13 y verificación). Si una falla dos veces, para y espera a que vuelva la cuota de Gemini.
+4. En opencode: solo T13, T15 y verificación. Empieza en la variante `low`; dos fallos → `high`; otros dos → la tarea vuelve a Antigravity. Nunca tareas de tokens, dinero, límites o secretos.
 
 ## 6. Entorno
 
-Windows 11 Pro · i5-12450H · 16 GB RAM · RTX 2050 4 GB · Rust estable MSVC (se instala en la fase 0) · Node 24.22 · Ollama · opencode · comandos en PowerShell. Rutas con espacios: siempre entre comillas (`"E:\Proyectos\Gestior de Tokens\Alpha"`).
+Windows 11 Pro · i5-12450H · 16 GB RAM · RTX 2050 4 GB · Rust estable MSVC · Node 24.22 · opencode · sqlite3 · comandos en PowerShell. Rutas con espacios: siempre entre comillas (`"E:\Proyectos\Gestior de Tokens\Alpha"`).

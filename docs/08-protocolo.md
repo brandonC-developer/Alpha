@@ -7,7 +7,7 @@
 | **Usuario** | Decide, instala el entorno, lanza cada fase, prueba la app real, aprueba las puertas | — |
 | **Claude** (Claude Code, Opus 5.5) | Toda la documentación: diseño, plan, fases, contratos, mockups, reglas, agentes y skills. Responde preguntas. Revisa costes y planes (fase 3) | `docs/`, `AGENTS.md`, `.agents/` |
 | **Antigravity** (Orchestrator y subagentes) | Todo el código y las pruebas, siguiendo la documentación | `app/`, `handoff/` |
-| **opencode** (DeepSeek o local) | Solo como reserva o para trabajo N1, con las mismas reglas que Antigravity | `app/` (tareas `flash`), `handoff/` |
+| **opencode** (DeepSeek V4.1 Flash: gratis y, al agotarse, de pago con tope de 5 $) | T13, T15 y verificación, con las mismas reglas que Antigravity | `app/` (tareas `flash`), `handoff/` |
 
 ## 2. Ciclo de una fase
 

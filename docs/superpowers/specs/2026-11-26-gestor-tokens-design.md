@@ -6,7 +6,7 @@ Fecha: 2026-11-26 · Estado: borrador para aprobación · Investigación previa:
 
 Una app de escritorio para Windows, residente en la bandeja, que muestra **cuántos tokens gasta el usuario con cada herramienta y cada modelo**, **cuánto le queda de cada plan** y **cuánto le costaría** ese uso a precio de API.
 
-El usuario paga **Claude Pro** y **Google AI Pro**, y usa además un modelo local (Ollama) y **DeepSeek por API** como reserva barata. Hoy no sabe qué herramienta consume su cuota ni cuándo se le va a acabar la ventana de 5 horas. Lo descubre cuando el agente se para a mitad de una fase.
+El usuario paga **Claude Pro** y **Google AI Pro**, y usa además **DeepSeek por API** como reserva barata. Hoy no sabe qué herramienta consume su cuota ni cuándo se le va a acabar la ventana de 5 horas. Lo descubre cuando el agente se para a mitad de una fase.
 
 La app lee los registros que las herramientas ya escriben en el disco (sin proxy, sin tocar las herramientas), los guarda en su propia base de datos y los presenta como en la imagen de referencia: KPIs, tokens por día, mapa de calor, reparto por modelo y por agente.
 
@@ -14,7 +14,7 @@ La app lee los registros que las herramientas ya escriben en el disco (sin proxy
 
 1. **Panel de uso** (la imagen de referencia): tokens de entrada (con % desde caché), de salida (con media por turno), turnos, sesiones y tiempo activo de agente; rangos 7 / 30 / 90 días / Todo, con variación frente al periodo anterior.
 2. **Tokens por día** en barras divergentes (entrada arriba, salida abajo) y **mapa de calor** día × hora («cuándo trabajan»).
-3. **Modelos**: reparto por proveedor (Anthropic, Google, DeepSeek, local) y tabla por modelo con entrada, salida, caché, turnos y coste equivalente.
+3. **Modelos**: reparto por proveedor (Anthropic, Google, DeepSeek, otros) y tabla por modelo con entrada, salida, caché, turnos y coste equivalente.
 4. **Agentes**: tabla por herramienta (Claude Code, Antigravity, opencode) con entrada, salida y tiempo; un clic filtra todo el panel por esa herramienta.
 5. **Planes y límites**: para cada suscripción, consumo de la ventana de 5 horas y de la semanal, hora de reinicio y ritmo («a este ritmo se agota a las 17:40»); para DeepSeek, saldo y gasto del mes.
 6. **Coste de API por registro** (sección 8.6): cada llamada se guarda con su coste en dólares, el precio usado y si es coste real (DeepSeek) o equivalente API (suscripciones). Pantalla **Costes** con gasto por día, modelo, herramienta y proyecto, y el rendimiento de cada suscripción («Claude Pro: 20 $ al mes, uso equivalente 312 $ → 15,6×»).
@@ -44,7 +44,7 @@ La app lee los registros que las herramientas ya escriben en el disco (sin proxy
 
 - Windows 11 Pro · i5-12450H · 16 GB de RAM · RTX 2050 con 4 GB de VRAM.
 - **Rust no está instalado** (se instala en la fase 0: `rustup`, MSVC Build Tools, comprobación de WebView2). Node 24.22 sí está.
-- Ollama instalado pero parado y sin modelos.
+- Ollama se probó y se desinstaló el 26/11/2026: con 4 GB de VRAM era demasiado lento. El proyecto no usa modelos locales.
 - Planes: **Claude Pro**, **Google AI Pro** (Gemini app, Gemini CLI y Antigravity con Gemini 4), **DeepSeek API** de pago por uso como reserva.
 - Registros locales verificados el 26/11/2026:
   - Claude Code: `%USERPROFILE%\.claude\projects\<proyecto>\<sesión>.jsonl`, con `message.usage` = `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `output_tokens`, `output_tokens_details.thinking_tokens`; `message.model`; `message.id`.
@@ -75,8 +75,9 @@ La app lee los registros que las herramientas ya escriben en el disco (sin proxy
 Elegidas por el usuario:
 
 - App de escritorio para Windows, en Rust.
-- Planes medidos: Claude Pro, Google AI Pro y modelo local o API barata.
-- Flujo de trabajo B: Claude documenta y revisa; Antigravity programa; nivel local para trabajo mecánico; DeepSeek como reserva.
+- Planes medidos: Claude Pro, Google AI Pro y API barata (DeepSeek). El modelo local se descartó el 26/11/2026.
+- Flujo de trabajo B: Claude documenta y revisa; Antigravity programa; DeepSeek como reserva. El nivel local para trabajo mecánico se descartó junto con Ollama.
+- **Revisado el 26/11/2026 (usuario):** opencode programa junto con Antigravity, primero con su mejor modelo gratuito y, cuando se agota, con DeepSeek de pago con un tope de 5 $. Cada tarea lleva su carga, modelo e intensidad, respaldados por benchmarks independientes y estudios (`docs/02-agentes-y-modelos.md`).
 - Misma estructura de trabajo que `E:\Proyectos\Azure\AZ-900`.
 
 Decisiones de Claude (el usuario puede cambiarlas):
@@ -101,7 +102,7 @@ Núcleo Rust (Tauri 2, tokio)
    ├─ Colectores (trait Collector)
    │    ├─ ClaudeCodeCollector   ~/.claude/projects/**/*.jsonl
    │    ├─ AntigravityCollector  ~/.gemini/antigravity/brain/*/.system_generated/logs/transcript.jsonl
-   │    ├─ OpencodeCollector     sesiones de opencode (DeepSeek y Ollama)   [v0.3]
+   │    ├─ OpencodeCollector     sesiones de opencode (DeepSeek)            [v0.3]
    │    └─ DeepSeekBalance       GET https://api.deepseek.com/user/balance  [v0.3]
    ├─ Normalizador → UsageEvent
    ├─ Precios (pricing.json, versionado por fecha)
@@ -129,7 +130,7 @@ pub struct ParseOutcome { pub events: Vec<UsageEvent>, pub new_offset: u64 }
 pub struct UsageEvent {
     pub dedup_key: String,        // único: ver 8.3
     pub tool: Tool,               // ClaudeCode | Antigravity | Opencode
-    pub provider: Provider,       // Anthropic | Google | DeepSeek | Local
+    pub provider: Provider,       // Anthropic | Google | DeepSeek | Other
     pub model: String,            // tal como viene: "claude-opus-5-5", "gemini-4-neon-xhigh"
     pub ts_utc: DateTime<Utc>,
     pub session_id: String,
@@ -170,7 +171,7 @@ Nombres alineados con la convención OpenTelemetry GenAI (`gen_ai.usage.input_to
 - `source_file`: ruta, colector, tamaño, mtime, offset, última lectura, errores.
 - `ingest_error`: archivo, línea, motivo, fecha.
 - `price`: id, proveedor, patrón de modelo, válido_desde, válido_hasta, $/M de entrada, de salida, de escritura en caché y de lectura de caché, fuente (URL) y si lo editó el usuario.
-- `plan`: id, nombre, proveedor, herramientas incluidas, tipo (`subscription` | `payg` | `local`), ventanas (JSON: duración y límite estimado en tokens ponderados), cuota mensual en $, presupuesto mensual.
+- `plan`: id, nombre, proveedor, herramientas incluidas, tipo (`subscription` | `payg`), ventanas (JSON: duración y límite estimado en tokens ponderados), cuota mensual en $, presupuesto mensual.
 - `plan_calibration`: plan, fecha, % que mostraba la herramienta oficial, tokens medidos en ese momento.
 - `alert_rule` y `alert_fired`: regla, umbral, última vez que saltó (para no repetir).
 - `daily_agg` y `hourly_agg`: agregados precalculados por día y hora × modelo × herramienta, para que el panel cargue al instante.
@@ -186,9 +187,7 @@ Ninguna de las dos suscripciones publica sus límites en tokens, así que la app
 - **Uso no medido:** si el usuario también usa claude.ai o la app de Gemini, el % real será mayor que el medido. La pantalla lo recuerda junto a la barra.
 - **Ritmo:** con el consumo de los últimos 30 minutos, la app estima a qué hora se agotaría la ventana.
 - **DeepSeek:** saldo real con `GET /user/balance` cada 15 minutos (si hay clave) y coste real por evento con su tabla de precios.
-- **Local (Ollama):** sin límite; solo tokens y tiempo.
-
-Planes iniciales: `claude-pro` (Claude Code), `google-ai-pro` (Antigravity, Gemini CLI), `deepseek` (opencode con DeepSeek), `local` (opencode con Ollama).
+Planes iniciales: `claude-pro` (Claude Code), `google-ai-pro` (Antigravity, Gemini CLI), `deepseek` (opencode con DeepSeek).
 
 ### 8.6 Coste de API
 
@@ -213,7 +212,6 @@ cost_usd = ( input       × price.input
 | `real` | Plan `payg` (DeepSeek) | Lo que se cobra de verdad; se contrasta con el saldo de `/user/balance` |
 | `api_equivalent` | Plan `subscription` (Claude Pro, Google AI Pro) | Lo que costaría el mismo uso pagando por API; no es un gasto |
 | `unknown` | Modelo sin precio (p. ej. un modelo nuevo) | `cost_usd = NULL`; la interfaz muestra «sin precio» y un enlace para añadirlo. **Nunca se cuenta como 0** |
-| — | Plan `local` (Ollama) | `cost_usd = 0` y `cost_kind = real`: no cuesta dinero |
 
 **Precios:**
 
@@ -283,8 +281,7 @@ Resumen (el detalle está en `docs/02-agentes-y-modelos.md`):
 | N4 Arquitecto | Máximo | Claude Opus 5.5 (Claude Code, Claude Pro) · Gemini 4 Carbon High | Diseño, documentación, revisiones de puerta |
 | N3 Planificador | Alto | Gemini 4 Neon (Orchestrator) | Repartir tareas y fusionar |
 | N2 Implementador | Medio o Extra | Gemini 4 Hydrogen (`pro` para Rust y lógica, `flash` para interfaz) | Código con TDD |
-| N1 Mecánico | Bajo | Local `qwen3:4b` en Ollama | Mensajes de commit, fixtures, resúmenes de logs de compilación |
-| Reserva | Medio | DeepSeek V4 Flash en opencode | Solo cuando se agota la cuota de Gemini, solo tareas `flash` |
+| N2 opencode | Variante `low`, escala a `high` | DeepSeek V4.1 Flash en opencode: gratis (`opencode/deepseek-v4.1-flash-free`) y, al agotarse, de pago (`deepseek-flash`, tope de 5 $) | T13, T15 y verificación: tareas con error visible |
 
 ## 10. Lo que queda para quien lo construya
 
@@ -300,5 +297,5 @@ Resumen (el detalle está en `docs/02-agentes-y-modelos.md`):
 - Precios de modelos de Antigravity sin precio público: el del equivalente público más cercano, marcado «aproximado».
 - Límites de los planes como estimación calibrada por el usuario, con peso = coste equivalente API.
 - El uso de claude.ai y de la app de Gemini queda fuera de la medición.
-- opencode como puerta única para DeepSeek y Ollama, para que un solo colector mida los dos.
+- opencode como puerta única para DeepSeek: un solo colector lo mide. Los modelos gratuitos de opencode salen como proveedor `other`, con coste real 0 $ (precio `*-free` en `06` §3).
 - El plan construye la v1.0 completa en hitos: primero Claude Code y Antigravity con el panel (MVP), después planes y alertas, y al final opencode y DeepSeek. La ruta exacta donde opencode guarda sus sesiones en Windows se comprueba en la fase 0, porque opencode aún no está instalado.

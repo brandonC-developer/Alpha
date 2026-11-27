@@ -25,8 +25,8 @@ Las fases 4 y 5 pueden ir en paralelo: la interfaz usa datos simulados hasta que
 | 2 Colectores e ingesta | T3 ∥ T4 → T5 | `implementador-nucleo` | `pro` | `verificador` + `revisor` | **Alto: contar mal** | Alta |
 | 3 Coste, consultas, planes | T6 → T7 ∥ T8 → T9 | `implementador-nucleo` | `pro` | `verificador` + **Carbon** + **Claude** | **Máximo: dinero** | Alta |
 | 4 Escritorio | T10 | `implementador-nucleo` | `pro` | `verificador` + `revisor` + usuario | Alto: hilos, bandeja | Media |
-| 5 Interfaz | T11 → T12 ∥ T13 | `implementador-ui` | `flash` | `verificador` + `qa-app` | Medio | Alta (reserva permitida) |
-| 6 Reserva y datos | T14 → T15 | `implementador-nucleo` | `pro` | `verificador` + `revisor` | Medio: secretos | Media |
+| 5 Interfaz | T11 → T12 ∥ T13 | `implementador-ui` (T11, T12) · **opencode** `implementador` (T13) | `flash` · DeepSeek V4.1 Flash `low` | `verificador` + `qa-app` | Medio | Alta |
+| 6 Reserva y datos | T14 → T15 | `implementador-nucleo` (T14) · **opencode** `implementador` (T15) | `pro` · DeepSeek V4.1 Flash `low` | `verificador` + `revisor` | Medio: secretos | Media |
 | 7 Entrega | T16 | `implementador-nucleo` + usuario | `pro` | **Carbon** + usuario | Medio | Baja |
 
 Los agentes, los modelos, el peso y el razonamiento de cada tarea están en [02-agentes-y-modelos.md](02-agentes-y-modelos.md).
@@ -45,8 +45,7 @@ Los agentes, los modelos, el peso y el razonamiento de cada tarea están en [02-
 - [ ] **MSVC Build Tools:** `winget install Microsoft.VisualStudio.2022.BuildTools` y, en el instalador, marcar «Desarrollo para el escritorio con C++» (MSVC y Windows SDK). Sin esto `cargo build` falla al enlazar.
 - [ ] **WebView2:** viene con Windows 11; comprobar que existe `C:\Program Files (x86)\Microsoft\EdgeWebView\Application`.
 - [ ] **Git:** `git init` en `E:\Proyectos\Gestior de Tokens\Alpha` y primer commit con la documentación (`git add docs AGENTS.md .agents handoff HXqFtqPXgAAf9KE.jpg` → `git commit -m "docs: documentación inicial"`).
-- [ ] **Ollama:** abrir Ollama y `ollama pull qwen3:4b`, `ollama pull qwen3.5:2b`, `ollama pull gemma4:e4b` (si alguna etiqueta no existe, anotar la lista que muestra `ollama search` o la web de Ollama).
-- [ ] **opencode:** instalarlo (`npm i -g opencode-ai`), configurar los proveedores **DeepSeek** (con la clave de la API) y **Ollama**, y hacer una consulta corta con cada uno para que queden sesiones en disco.
+- [ ] **opencode:** instalarlo con `npm install -g --allow-scripts=opencode-ai opencode-ai` (sin `--allow-scripts`, npm bloquea el script que copia el binario y `opencode` no arranca). Configurar el proveedor **DeepSeek** (`opencode` → `/connect` → DeepSeek, con la clave de la API), recargar **5 $** en la consola de DeepSeek y hacer una consulta corta con `deepseek/deepseek-flash` y otra con `opencode/deepseek-v4.1-flash-free`, para que queden sesiones en disco. La configuración del proyecto (`opencode.json`, `.opencode/agents/`) ya está escrita.
 - [ ] **SQLite (línea de comandos):** `winget install SQLite.SQLite` y comprobar `sqlite3 --version`. Solo sirve para inspeccionar la base de opencode en la parte «Comprobar»; la app no lo usa.
 
 **Comprobar (prompt para Antigravity, en modo Orchestrator):**
@@ -54,6 +53,8 @@ Los agentes, los modelos, el peso y el razonamiento de cada tarea están en [02-
 > Ejecuta la fase 0 de `docs/01-fases.md`, parte «Comprobar». No escribas código. Escribe los resultados en `handoff/fase-0-informe.md`.
 
 - [ ] Cargados: `AGENTS.md`, las reglas de `.agents/rules/`, las skills de `.agents/skills/` y los 5 subagentes de `.agents/agents/`. Para cada subagente, su modelo real y sus herramientas (invocarlo y pedirle que las liste sin escribir nada).
+- [ ] **Modelo exacto en un subagente** (`02-agentes-y-modelos.md` §4.1): en una copia temporal de `verificador.md` fuera de `.agents/`, cambiar `model: flash` por `model: gemini-4-hydrogen-medium` y comprobar si Antigravity la acepta y qué modelo usa. Probar lo mismo con `claude-sonnet-5-5-high`. Anotar el resultado y borrar la copia.
+- [ ] **Cuota de los modelos Claude en Antigravity:** en «View Usage», anotar si Claude Opus/Sonnet 5.5 tienen barras de 5 h y semanal propias o comparten las de Gemini. Hacer una consulta corta con Claude Sonnet 5.5 y comprobar qué barra baja.
 - [ ] **Antigravity cuenta la caché dentro de la entrada:** en 3 conversaciones distintas de `%USERPROFILE%\.gemini\antigravity\brain\`, comprobar en `transcript.jsonl` que `input_tokens ≥ cache_read_tokens` en todos los pasos con `source = MODEL`. Anotar cuántos pasos se revisaron y si alguno no cumple. **Solo números: no copiar ningún texto del transcript.**
 - [ ] **Claude Code:** en 2 archivos de `%USERPROFILE%\.claude\projects\`, contar cuántas líneas `assistant` comparten `message.id` (confirma la deduplicación de `docs/06` §1.1).
 - [ ] **opencode:** se espera una base SQLite en `%USERPROFILE%\.local\share\opencode\opencode.db` (investigación del 26/11/2026 sobre el código de opencode 1.19.6). Hacer estas comprobaciones **en este orden** y anotar la salida. **Solo nombres de tablas, ids, números y fechas: nunca texto de mensajes ni de partes, y nunca la tabla de credenciales.**
@@ -62,7 +63,7 @@ Los agentes, los modelos, el peso y el razonamiento de cada tarea están en [02-
   3. Tablas: `sqlite3 -readonly "<ruta>" ".tables"`.
   4. **Si existe la tabla `message` (esquema v1):**
      - `sqlite3 -readonly "<ruta>" ".schema message"` y `".schema session"`.
-     - Uso de los 4 últimos mensajes del asistente (al menos uno de DeepSeek y uno de Ollama):
+     - Uso de los 4 últimos mensajes del asistente (al menos uno de DeepSeek):
        `sqlite3 -readonly "<ruta>" "SELECT id, time_created, json_extract(data,'$.providerID'), json_extract(data,'$.modelID'), json_extract(data,'$.tokens'), json_extract(data,'$.cost'), json_extract(data,'$.time.created'), json_extract(data,'$.time.completed'), json_extract(data,'$.summary') FROM message WHERE json_extract(data,'$.role')='assistant' ORDER BY time_created DESC LIMIT 4;"`
      - ¿Las partes `step-finish` repiten los tokens del mensaje? Para los mismos mensajes:
        `sqlite3 -readonly "<ruta>" "SELECT message_id, json_extract(data,'$.tokens'), json_extract(data,'$.cost') FROM part WHERE json_extract(data,'$.type')='step-finish' ORDER BY time_created DESC LIMIT 8;"`
@@ -70,10 +71,10 @@ Los agentes, los modelos, el peso y el razonamiento de cada tarea están en [02-
   5. **Si en su lugar existen `session_v2` y `session_message` (esquema v2):** `".schema session_message"` y
      `sqlite3 -readonly "<ruta>" "SELECT id, type, time_created, json_extract(data,'$.model'), json_extract(data,'$.tokens'), json_extract(data,'$.cost'), json_extract(data,'$.time.completed') FROM session_message WHERE type IN ('assistant','compaction') ORDER BY time_created DESC LIMIT 4;"`
   6. **Después de las consultas:** repetir el listado del paso 2 y anotar si `sqlite3 -readonly` creó o modificó algún archivo (`-shm`, `-wal`) y su fecha. Decide cómo abrirá la base la app sin escribir en la carpeta de opencode.
-  7. Configuración: ruta de `opencode.json` y si opencode cargó `AGENTS.md` y las skills de `.agents/skills/` (pedirle en opencode que liste sus skills sin ejecutar nada).
-- [ ] **DeepSeek:** id exacto del modelo con `GET https://api.deepseek.com/models` (con la clave del usuario; no escribir la clave en el informe). Ojo: en models.dev `deepseek-v4-flash` aparece como obsoleto y el nombre actual es `deepseek-flash`; anotar los ids que devuelva la API y el `modelID` que guarda opencode (paso 4 o 5 de arriba).
-- [ ] **Modelo local:** la calibración de `02-agentes-y-modelos.md` §4 con los 3 candidatos; tabla de aciertos y segundos.
-- [ ] **Versiones:** `rustc`, `cargo`, `node`, `npm`, `git`, `ollama`, `opencode`.
+  7. Configuración: `opencode debug agent implementador` (modelo `opencode/deepseek-v4.1-flash-free`, variante `low`) y `opencode debug skill` (deben aparecer las 3 skills de `.agents/skills/`).
+  8. Modelos gratuitos: `opencode models opencode`. Anotar si `deepseek-v4.1-flash-free` sigue en la lista (son gratuitos «por tiempo limitado»).
+- [ ] **DeepSeek:** id exacto del modelo con `GET https://api.deepseek.com/models` (con la clave del usuario; no escribir la clave en el informe). Ojo: en models.dev `deepseek-v4-flash` aparece como obsoleto y el nombre actual es `deepseek-flash`; anotar los ids que devuelva la API y el `modelID` que guarda opencode (paso 4 o 5 de arriba). Anotar también, de la consola de DeepSeek, la recarga mínima y si el saldo caduca.
+- [ ] **Versiones:** `rustc`, `cargo`, `node`, `npm`, `git`, `sqlite3`, `opencode`.
 - [ ] **Cuota de Google AI Pro en dólares** (la pone el usuario en el informe).
 
 **Puerta 0:** `handoff/fase-0-informe.md` existe con todo lo anterior. El usuario se lo pasa a Claude: «Lee `handoff/fase-0-informe.md` y actualiza la documentación». Claude completa `docs/06-colectores-y-costes.md` §1.3 y §3.2, responde en `docs/respuestas.md` y anota los cambios en `docs/CHANGELOG.md`.
@@ -128,7 +129,7 @@ Los agentes, los modelos, el peso y el razonamiento de cada tarea están en [02-
 
 > Revisa `app/src-tauri/src/core/cost.rs`, `pricing.rs`, `plans.rs`, `query.rs` y `alerts.rs` contra `docs/06-colectores-y-costes.md`, `docs/04-comandos.md` y las «Restricciones globales» del plan. Busca: costes que cuenten como 0 lo que no tiene precio, razonamiento cobrado dos veces, recálculos que toquen eventos de otro modelo o fuera del rango, ventanas que cuenten eventos de fuera, fechas en UTC donde debería ser hora local, divisiones por cero en porcentajes y rendimiento. Escribe los hallazgos en `handoff/fase-3-revision-carbon.md` sin cambiar código.
 
-**Revisión de Claude:** el usuario pide en Claude Code: «Revisa la fase 3: `git diff` de la fase en `app/src-tauri/src/core/` contra la spec §8.5 y §8.6». Claude escribe en `handoff/fase-3-revision-claude.md`.
+**Revisión de Claude:** el usuario pide en Claude Code: «Revisa la fase 3: `git diff` de la fase en `app/src-tauri/src/core/` contra la spec §8.5 y §8.6». Claude escribe en `handoff/fase-3-revision-claude.md`. Si la fase 0 confirmó que Claude tiene cuota propia en Antigravity, se pide lo mismo en Antigravity con **Claude Opus 5.5 High**, y Claude Code solo lee el resultado (`02-agentes-y-modelos.md` §6).
 
 Los hallazgos graves de las dos revisiones los corrige `implementador-nucleo` antes de la puerta.
 
@@ -162,9 +163,18 @@ Los hallazgos graves de las dos revisiones los corrige `implementador-nucleo` an
 
 **Prompt para Antigravity:**
 
-> Ejecuta la fase 5 de `docs/01-fases.md`. Invoca `implementador-ui` con las skills `ejecutar-tarea-tdd` y `mockup-a-react` para T11. Después lanza en paralelo, en workspaces `branch`, T12 y T13. Fusiona, ejecuta `npm test` e invoca `qa-app` para comparar cada pantalla con su mockup según `docs/05-ui.md`. Al acabar, usa la skill `cerrar-fase` con fase 5.
+> Ejecuta la fase 5 de `docs/01-fases.md`. Invoca `implementador-ui` con las skills `ejecutar-tarea-tdd` y `mockup-a-react` para T11 y espera. Después invoca `implementador-ui` para T12 en un workspace `branch`. T13 la hace opencode en la rama `t13`: no la hagas tú. Cuando el usuario te avise de que `t13` está terminada, fusiona T12 y `t13`, ejecuta `npm test` e invoca `qa-app` para comparar cada pantalla con su mockup según `docs/05-ui.md`. Al acabar, usa la skill `cerrar-fase` con fase 5.
 
-**Si se acaba la cuota de Gemini:** el usuario puede seguir T12 o T13 con DeepSeek en opencode (`02-agentes-y-modelos.md` §5).
+**T13 en opencode (usuario, en cuanto T11 esté fusionada):**
+
+```powershell
+cd "E:\Proyectos\Gestior de Tokens"
+git -C Alpha worktree add "..\Alpha-t13" -b t13
+cd "Alpha-t13\app"; npm install; cd ..
+opencode run --agent implementador "Ejecuta T13"
+```
+
+Con dos fallos verificados, repetir con `--variant high`. Si vuelve a fallar, T13 pasa a Antigravity (`implementador-ui`). Si se agota el modelo gratuito, seguir con `-m deepseek/deepseek-flash` (`02-agentes-y-modelos.md` §5.2). Al terminar, avisar a Antigravity y borrar la copia: `git -C "E:\Proyectos\Gestior de Tokens\Alpha" worktree remove "..\Alpha-t13"`.
 
 **Puerta 5:**
 
@@ -181,7 +191,9 @@ Los hallazgos graves de las dos revisiones los corrige `implementador-nucleo` an
 
 **Prompt para Antigravity:**
 
-> Ejecuta la fase 6 de `docs/01-fases.md`. Invoca `implementador-nucleo` con la skill `ejecutar-tarea-tdd` para T14 y después para T15. Al acabar, usa la skill `cerrar-fase` con fase 6.
+> Ejecuta la fase 6 de `docs/01-fases.md`. Invoca `implementador-nucleo` con la skill `ejecutar-tarea-tdd` para T14 y espera. T15 la hace opencode: cuando el usuario te avise de que está terminada, invoca `revisor` sobre T15 y usa la skill `cerrar-fase` con fase 6.
+
+**T15 en opencode (usuario, cuando T14 esté confirmada):** en `E:\Proyectos\Gestior de Tokens\Alpha`, `opencode run --agent implementador "Ejecuta T15"`. Se escala igual que T13 en la fase 5, y si falla con `--variant high`, la hace `implementador-nucleo`.
 
 **Puerta 6:**
 

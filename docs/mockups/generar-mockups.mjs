@@ -121,7 +121,6 @@ const models = [
   ['google', 'gemini-4-hydrogen-high', '168 M', '0,9 M', '58', '—'],
   ['google', 'gemini-4-hydrogen-xhigh', '41 M', '0,3 M', '14', '—'],
   ['deepseek', 'deepseek-v4-flash', '12,4 M', '0,2 M', '11', '3,84 $'],
-  ['local', 'qwen3:4b', '0,9 M', '0,1 M', '4', '0,00 $'],
 ];
 const panel = page('Panel', 'Panel', `
 <header class="head">
@@ -150,10 +149,10 @@ const panel = page('Panel', 'Panel', `
 </section>
 <section class="grid2">
   <article class="card">
-    <header class="sec"><h2 class="label">Modelos</h2><span class="muted small">6 modelos</span></header>
+    <header class="sec"><h2 class="label">Modelos</h2><span class="muted small">5 modelos</span></header>
     <!-- datos: get_dashboard → byProvider, byModel -->
-    <div class="split" aria-label="Anthropic 65 %, Google 34 %, DeepSeek 1 %, local 0 %"><i class="p-anthropic" style="flex:65"></i><i class="p-google" style="flex:34"></i><i class="p-deepseek" style="flex:1"></i></div>
-    <p class="legend"><span><i class="dot p-anthropic"></i>Anthropic 65 %</span><span><i class="dot p-google"></i>Google 34 %</span><span><i class="dot p-deepseek"></i>DeepSeek 1 %</span><span><i class="dot p-local"></i>Local 0 %</span></p>
+    <div class="split" aria-label="Anthropic 65 %, Google 34 %, DeepSeek 1 %"><i class="p-anthropic" style="flex:65"></i><i class="p-google" style="flex:34"></i><i class="p-deepseek" style="flex:1"></i></div>
+    <p class="legend"><span><i class="dot p-anthropic"></i>Anthropic 65 %</span><span><i class="dot p-google"></i>Google 34 %</span><span><i class="dot p-deepseek"></i>DeepSeek 1 %</span></p>
     <table>
       <thead><tr><th>Modelo</th><th class="n">Entrada</th><th class="n">Salida</th><th class="n">Turnos</th><th class="n">Coste</th></tr></thead>
       <tbody>${models.map(([p, m, i, o, t, c]) => `<tr><td><i class="dot p-${p}"></i><a href="#">${m}</a></td><td class="n">${i}</td><td class="n">${o}</td><td class="n">${t}</td><td class="n">${c === '—' ? '<span class="tag">sin precio</span>' : c}</td></tr>`).join('')}</tbody>
@@ -197,7 +196,7 @@ const costes = page('Costes', 'Costes', `
 </header>
 <section class="kpis" aria-label="Resumen de costes">
   <!-- datos: get_costs → realUsd, apiEquivalentUsd, feesUsd, yield -->
-  ${kpi('Gasto real', '3,84 $', 'DeepSeek · local 0 $', '+3,84 $', costDays.map((c) => c.real + 0.001))}
+  ${kpi('Gasto real', '3,84 $', 'DeepSeek', '+3,84 $', costDays.map((c) => c.real + 0.001))}
   ${kpi('Equivalente API', '298,40 $', 'Claude Pro · Antigravity sin precio', '+164 %', costDays.map((c) => c.eq), 'up')}
   ${kpi('Cuota pagada', '20,00 $', 'Claude Pro · Google AI Pro sin confirmar', '=', costDays.map(() => 1))}
   ${kpi('Rendimiento', '14,9×', 'equivalente / cuota', '+5,2×', costDays.map((c) => c.eq), 'up')}
@@ -218,8 +217,8 @@ const costes = page('Costes', 'Costes', `
     <div class="yield"><div><b>Google AI Pro</b><span class="muted small">cuota sin confirmar · 412 llamadas sin precio</span></div><p class="big2 muted">—</p></div>
     <h3 class="label mt">DeepSeek este mes</h3>
     <!-- datos: get_costs → deepseekBudget, monthProjection -->
-    <div class="bar" role="progressbar" aria-valuenow="38" aria-valuemin="0" aria-valuemax="100" aria-label="Presupuesto de DeepSeek"><i style="width:38%"></i></div>
-    <p class="small"><b>3,84 $</b> de 10,00 $ · saldo 8,42 $ · proyección del mes 5,10 $</p>
+    <div class="bar" role="progressbar" aria-valuenow="77" aria-valuemin="0" aria-valuemax="100" aria-label="Presupuesto de DeepSeek"><i style="width:77%"></i></div>
+    <p class="small"><b>3,84 $</b> de 5,00 $ · saldo 1,16 $ · proyección del mes 4,90 $</p>
   </article>
 </section>
 <section class="grid2">
@@ -228,7 +227,6 @@ const costes = page('Costes', 'Costes', `
     <table><thead><tr><th>Modelo</th><th>Tipo</th><th class="n">Turnos</th><th class="n">Coste</th></tr></thead><tbody>
       <tr><td><i class="dot p-anthropic"></i>claude-opus-5-5</td><td><span class="tag hatched-tag">equivalente</span></td><td class="n">201</td><td class="n">298,40 $</td></tr>
       <tr><td><i class="dot p-deepseek"></i>deepseek-v4-flash</td><td><span class="tag real">real</span></td><td class="n">11</td><td class="n">3,84 $</td></tr>
-      <tr><td><i class="dot p-local"></i>qwen3:4b</td><td><span class="tag real">real</span></td><td class="n">4</td><td class="n">0,00 $</td></tr>
       <tr><td><i class="dot p-google"></i>gemini-4-neon-xhigh</td><td><span class="tag">sin precio</span></td><td class="n">64</td><td class="n">—</td></tr>
     </tbody></table>
   </article>
@@ -266,14 +264,10 @@ const planes = page('Planes', 'Planes', `
   </article>
   <article class="card plan">
     <header class="sec"><h2><i class="dot p-deepseek"></i>DeepSeek</h2><span class="muted small">pago por uso · opencode</span></header>
-    <div class="row3"><div><span class="label">Saldo</span><p class="big2">8,42 $</p></div><div><span class="label">Este mes</span><p class="big2">3,84 $</p></div><div><span class="label">Presupuesto</span><p class="big2">10 $</p></div></div>
-    ${wbar(38)}
+    <div class="row3"><div><span class="label">Saldo</span><p class="big2">1,16 $</p></div><div><span class="label">Este mes</span><p class="big2">3,84 $</p></div><div><span class="label">Presupuesto</span><p class="big2">5 $</p></div></div>
+    ${wbar(77)}
     <p class="small muted">Saldo consultado hace 6 min en api.deepseek.com</p>
     <footer class="actions"><button class="btn ghost">Editar presupuesto</button></footer>
-  </article>
-  <article class="card plan">
-    <header class="sec"><h2><i class="dot p-local"></i>Local (Ollama)</h2><span class="muted small">sin límite · opencode</span></header>
-    <div class="row3"><div><span class="label">Tokens este mes</span><p class="big2">1,0 M</p></div><div><span class="label">Coste</span><p class="big2">0 $</p></div><div><span class="label">Modelo</span><p class="big2 small2">qwen3:4b</p></div></div>
   </article>
 </section>
 <!-- estado: diálogo de calibración -->
@@ -292,7 +286,6 @@ const sess = [
   ['25/11 19:40', 'Claude Code', 'AZ-900', 'claude-opus-5-5', '58 min', '22', '17,4 M', '8,65 $ eq.', false],
   ['25/11 18:05', 'opencode', 'Alpha', 'deepseek-v4-flash', '24 min', '9', '6,1 M', '0,94 $', false],
   ['25/11 11:30', 'Antigravity', '—', 'gemini-4-hydrogen-high', '1 h 05 min', '31', '12,8 M', 'sin precio', false],
-  ['24/11 21:12', 'opencode', 'Alpha', 'qwen3:4b', '6 min', '4', '0,3 M', '0,00 $', false],
 ];
 const sesiones = page('Sesiones', 'Sesiones', `
 <header class="head"><div><h1>Sesiones</h1><p class="muted">61 sesiones · 1 fuera de lo normal</p></div><div class="row">${ranges('7 días')}<label class="check"><input type="checkbox"> Solo anómalas</label></div></header>
@@ -348,7 +341,7 @@ const ajustes = page('Ajustes', 'Ajustes', `
   <table><thead><tr><th>Modelo</th><th>Desde</th><th class="n">Entrada</th><th class="n">Salida</th><th class="n">Escr. caché</th><th class="n">Lect. caché</th><th>Fuente</th></tr></thead><tbody>
     <tr><td>claude-opus-5-5*</td><td>01/01/2026</td><td class="n">4,00</td><td class="n">20,00</td><td class="n">5,00</td><td class="n">0,20</td><td><a href="#">Anthropic</a></td></tr>
     <tr><td>claude-sonnet-5-5* <span class="tag warn">aprox.</span></td><td>01/01/2026</td><td class="n">2,00</td><td class="n">10,00</td><td class="n">2,50</td><td class="n">0,10</td><td><a href="#">DevelopersDigest</a></td></tr>
-    <tr><td>deepseek-v4-flash* <span class="tag warn">aprox.</span></td><td>01/01/2026</td><td class="n">0,14</td><td class="n">0,28</td><td class="n">0,00</td><td class="n">0,0028</td><td><a href="#">DeepSeek</a></td></tr>
+    <tr><td>deepseek-flash* <span class="tag warn">aprox.</span></td><td>16/08/2026</td><td class="n">0,15</td><td class="n">0,60</td><td class="n">0,00</td><td class="n">0,003</td><td><a href="#">DeepSeek</a></td></tr>
     <tr class="missing"><td>gemini-4-* <span class="tag">sin precio</span></td><td colspan="5" class="muted">Google no publica precio de API para Neon, Hydrogen ni Carbon</td><td><button class="btn ghost small">Añadir</button></td></tr>
   </tbody></table>
   <p class="notice ok small">Recalculadas 120 llamadas: 4,10 $ → 5,30 $</p>

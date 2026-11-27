@@ -28,7 +28,6 @@ Un número de tarea, `TN`. El plan está en `docs/superpowers/plans/2026-11-26-g
    git commit -m "<mensaje del plan>"
    ```
 
-   Opcional (ahorra cuota): pide un borrador del mensaje al modelo local, `git diff --staged | ollama run qwen3:4b "…"`, pero el mensaje final es el del plan.
 9. **Informa** al agente que te invocó: tarea, archivos, pruebas nuevas, resultado de la batería y hash del commit.
 
 ## Lo que no se hace
