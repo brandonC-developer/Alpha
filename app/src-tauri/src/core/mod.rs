@@ -1,9 +1,11 @@
+pub mod agy_usage;
 pub mod collectors;
 pub mod cost;
 pub mod db;
 pub mod error;
 pub mod ingest;
 pub mod model;
+pub mod plans;
 pub mod pricing;
 pub mod query;
 pub mod time;
