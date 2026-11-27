@@ -186,7 +186,7 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 
 ```rust
 #[test] fn esquema_se_aplica_una_vez() { /* open_db dos veces sobre el mismo archivo temporal → user_version = 1 y sin error */ }
-#[test] fn tablas_existen() { /* las 10 tablas de 03-arquitectura §3 existen */ }
+#[test] fn tablas_existen() { /* las 11 tablas de 03-arquitectura §3 existen (incluida session_hour) */ }
 #[test] fn planes_sembrados() { /* 4 filas en plan: «Claude Pro», «Google AI Pro · Gemini» (cuota 20 $), «Google AI Pro · Claude y GPT» (cuota 0: es el mismo pago) y «DeepSeek»; cambiar monthly_fee_usd y reabrir → se conserva */ }
 #[test] fn plan_por_herramienta() {
     assert_eq!(plan_for(Tool::ClaudeCode, Provider::Anthropic), "claude-pro");
@@ -327,7 +327,7 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
     // precio de prueba: input 5, output 25, cache_write 6.25, cache_read 0.5 ($/M)
     // evento: input 2, output 415, cache_write 22158, cache_read 29587
     // (2×5 + 415×25 + 22158×6.25 + 29587×0.5) / 1e6 = 0.16367...
-    assert!((compute_cost(&ev, &p) - 0.1636710).abs() < 1e-7);
+    assert!((compute_cost(&ev, &p) - 0.163666).abs() < 1e-7);
 }
 #[test] fn razonamiento_no_se_cobra_dos_veces() { /* reasoning 271 no cambia el coste */ }
 #[test] fn sin_precio_es_unknown_y_null() { /* modelo "modelo-raro" → cost_usd NULL, cost_kind "unknown" */ }

@@ -123,6 +123,21 @@ CREATE TABLE hourly_agg (
   PRIMARY KEY (hour_utc, tool, provider, plan_id, model, project)
 );
 
+CREATE TABLE session_hour (                    -- resumen por sesión y hora para el Panel (fase 3: panel_rapido)
+  session_id  TEXT NOT NULL,
+  tool        TEXT NOT NULL,
+  provider    TEXT NOT NULL,
+  project     TEXT NOT NULL DEFAULT '',
+  hour_utc    TEXT NOT NULL,                   -- 'YYYY-MM-DDTHH:00:00Z'
+  events      INTEGER NOT NULL,
+  first_ts    TEXT NOT NULL,                   -- primer evento de la sesión en esa hora (ISO 8601 con Z)
+  last_ts     TEXT NOT NULL,                   -- último evento de la sesión en esa hora
+  active_secs INTEGER NOT NULL,                -- huecos entre eventos consecutivos dentro de la hora, máximo 300 s cada uno
+  minute_mask INTEGER NOT NULL,                -- bit m (0–59) = hubo algún evento en el minuto m
+  PRIMARY KEY (session_id, tool, provider, project, hour_utc)
+);
+CREATE INDEX ix_session_hour ON session_hour(hour_utc);
+
 CREATE TABLE source_file (
   id          INTEGER PRIMARY KEY,
   collector   TEXT NOT NULL,
@@ -203,6 +218,13 @@ CREATE TABLE setting (
 ```
 
 `alert_rule` de la spec se simplifica: las reglas son fijas en código (`docs/06-colectores-y-costes.md` §5) y sus umbrales se guardan en `setting` (`alert.window5h.levels` = `[80,95]`, etc.). `daily_agg` no hace falta: los días salen de `hourly_agg`.
+
+**`session_hour`** existe para que el Panel cumpla los 300 ms con 1 M de eventos. Leer `usage_event` entera tardaba 874 ms en release. La tabla da los tres datos que `hourly_agg` no puede dar, con exactamente las definiciones de la spec §8.3:
+- **Sesiones:** `COUNT(DISTINCT session_id)` en el rango.
+- **Concurrencia:** para cada hora, se suman los bits de `minute_mask` de todas las sesiones y se toma el máximo por minuto.
+- **Tiempo activo:** la suma de `active_secs`, más, entre dos filas consecutivas de la misma sesión, `min(first_ts(siguiente) − last_ts(anterior), 300 s)`.
+
+Se mantiene en la ingesta. Tras cada archivo, cada pareja (sesión, hora) tocada se **recalcula entera** desde `usage_event` con `ix_event_session`, así que un evento fuera de orden o repetido no la descuadra. Los filtros `tool`, `provider` y `project` funcionan igual que en `hourly_agg`.
 
 ## 4. Hilos y concurrencia
 
