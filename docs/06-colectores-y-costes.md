@@ -136,20 +136,27 @@ Formato:
    "sourceUrl": "https://platform.claude.com/docs/en/about-claude/pricing", "approximate": false }]
 ```
 
-### 3.1 Valores ($ por millón de tokens, revisados el 26/11/2026)
+### 3.1 Valores ($ por millón de tokens, revisados el 27/11/2026)
 
 | Patrón | Entrada | Salida | Escritura caché | Lectura caché | Aproximado | Fuente |
 | --- | --- | --- | --- | --- | --- | --- |
 | `claude-opus-5-5*` | 4,00 | 20,00 | 5,00 | 0,20 | no | Página de precios de Anthropic y varias fuentes coincidentes |
 | `claude-sonnet-5-5*` | 2,00 | 10,00 | 2,50 | 0,10 | **sí** (una sola fuente; caché = 1,25× y 0,05× de la entrada, como Opus) | DevelopersDigest |
-| `gemini-4-*` | — | — | — | — | — | **Sin precio público de API** para Neon, Hydrogen ni Carbon. Ver 3.2 |
+| `gemini-4-hydrogen*` (incluye `-tiered-*`) desde 2026-01-01 | 1,50 | 7,50 | 0 | 0,075 | no | Página oficial de precios de la API de Gemini (aistudio.google.com/docs/pricing), leída el 27/11/2026; la salida incluye el razonamiento y solo hay caché implícita |
+| `gemini-4-neon*` desde 2026-01-01 | 3,00 | 15,00 | 0 | 0,15 | no | Ídem |
+| `gemini-4-carbon*` y `gemini-4-argon*` desde 2026-01-01 | 2,00 | 10,00 | 0 | 0,10 | no | Ídem; vigente hasta el 30/11/2026 |
+| `gemini-4-carbon*` y `gemini-4-argon*` desde **2026-12-01** | 4,00 | 20,00 | 0 | 0,20 | no | Ídem: el precio se duplica |
+| `gemini-3.8-flash*` desde 2026-01-01 | 0,75 | 3,75 | 0 | 0,075 | no | Ídem; vigente hasta el 31/12/2026 |
+| `gemini-3.8-flash*` desde **2027-01-01** | 1,50 | 7,50 | 0 | 0,15 | no | Ídem |
+| `gemini-pro-orchestrator-neon` · `gemini-pro-orchestrator` · `gemini-pro-orchestrator-argon` | los de Neon · Carbon · Argon | | | | **sí** | El Orchestrator de Antigravity corre sobre ese modelo («Orchestrator (Neon)», etc., en `agy models`); Google no le pone precio propio |
+| `gemini-flash-worker-agy` | — | — | — | — | — | Sin precio: queda como `unknown` |
 | `deepseek-flash*`, `deepseek-v4-flash*` (alias retirado que DeepSeek sirve con el mismo modelo y precio) | 0,15 | 0,60 | 0 | 0,003 | **sí**: tarifa fuera de hora punta, vigente desde el 16/08/2026. En hora punta (01–04 y 06–10 UTC, de lunes a viernes) cuesta el doble. El gasto real exacto lo da el saldo | api-docs.deepseek.com/quick_start/pricing |
 | `*-free`, `big-pickle` (proveedor `other`, herramienta `opencode`) | 0 | 0 | 0 | 0 | no: modelos gratuitos de opencode Zen. Coste 0 real, no «sin precio» | opencode.ai/docs/zen |
 
 ### 3.2 Pendiente antes de la fase 3 (lo hace Claude)
 
-- **Gemini 4 (Neon, Hydrogen, Carbon):** Google solo publica precio de API para Gemini 4 Argon, que se retira. Antes de la fase 3, Claude revisa `ai.google.dev/gemini-api/docs/pricing`; si siguen sin precio, se usa el de Argon como aproximación para los tres (marcado `approximate: true`) y se documenta aquí. Mientras tanto, los eventos de Antigravity salen como «sin precio» (`unknown`), que es el comportamiento correcto.
-- **Ids sin precio:** `gemini-pro-orchestrator-*`, `gemini-flash-worker-agy` y `gemini-3.8-flash-*` (vistos en la fase 0) no tienen precio de API: salen como «sin precio» (`unknown`). Los `gemini-4-hydrogen-tiered-*` los cubre el patrón `gemini-4-*`.
+- **Gemini 4: hecho el 27/11/2026.** Google ya publica precios de API (§3.1). En `pricing.json` cada modelo con dos precios lleva dos filas con `validFrom`, y el coste usa el vigente en la fecha de cada llamada. Como `globset` admite un patrón por fila, «`gemini-4-carbon*` y `gemini-4-argon*`» son filas separadas con el mismo precio.
+- **Ids sin precio:** `gemini-flash-worker-agy` sale como «sin precio» (`unknown`).
 - **Cuota de Google AI Pro: 20 $/mes** (confirmada por el usuario el 27/11/2026). Se siembra en `google-ai-pro`. Es una sola cuota mensual para los planes `google-ai-pro` y `google-ai-pro-claude`; el rendimiento se calcula sumando los dos.
 - **DeepSeek, saldo:** el saldo recargado no caduca; solo caduca el saldo regalado (`granted_balance`), según la FAQ oficial. DeepSeek no publica una recarga mínima oficial: las fuentes de terceros hablan de 2 $ a 5 $. El usuario recargó 5 $ (27/11/2026).
 - **DeepSeek hora punta:** la v1 usa una sola tarifa por modelo. Si la diferencia entre el gasto calculado y la bajada de saldo supera el 10 % en un mes, se abre una tarea nueva para tarifas por franja horaria.

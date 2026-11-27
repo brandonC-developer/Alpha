@@ -2,6 +2,7 @@
 
 | Fecha | Documento | Cambio | Afecta a |
 | --- | --- | --- | --- |
+| 2026-11-27 | `06` §3.1 y §3.2 | **Precios de Gemini 4** de la página oficial de la API: Hydrogen 1,50/7,50, Neon 3/15, Carbon y Argon 2/10 hasta el 30/11 y 4/20 desde el 1/12, 3.8 Flash 0,75/3,75 hasta el 31/12. La salida incluye el razonamiento. El Orchestrator usa el precio de su modelo base (aproximado). Antigravity deja de salir casi todo como «sin precio» | T6, T12 |
 | 2026-11-27 | `06` §1.2, `handoff/fase-2-informe.md` | **Fase 2 hecha.** Claude Code coincide con ccusage (los días cerrados al 0,00 %; el total al +0,28 %). En Antigravity, `output_tokens` incluye el razonamiento: ccusage lo separa y da menos salida. La app lo incluye, que es su convención y lo que cobra Google. Mejora futura: leer el razonamiento de `conversations/<id>.db` | T4, T6 |
 | 2026-11-27 | `03` §1 y §3, plan (Stack), `handoff/fase-1-informe.md` | **Fase 1 hecha.** `gestor_core` es un crate aparte del workspace. Los PRAGMA salen de `schema.sql` y la apertura es atómica. Las fechas se escriben con `fmt_utc` y `Z`. Se acepta TypeScript 6 | T2, T5 |
 | 2026-11-27 | `06` §3.2, plan T2, `handoff/fase-0-informe.md`, mockups y canvas | Google AI Pro confirmado a **20 $/mes** (cuota pagada total 40 $). DeepSeek: el saldo recargado no caduca y no hay recarga mínima oficial. La copia de seguridad está en GitHub | T2, T12, T13 |
