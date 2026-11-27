@@ -6,7 +6,7 @@
 
 **Arquitectura:** Tauri 2. Un núcleo Rust (`gestor_core`, biblioteca sin dependencias de Tauri, probada con `cargo test`) contiene colectores, ingestión, precios, costes, planes, consultas y alertas sobre SQLite. Una capa fina (`src-tauri/src/app/`) expone comandos y eventos de Tauri, la bandeja y las notificaciones. La interfaz es React 19 + TypeScript + ECharts dentro de WebView2 y solo habla con Rust por `invoke`.
 
-**Stack:** Rust estable (≥ 1.85, MSVC) · Tauri 2 + plugins `notification`, `autostart`, `single-instance`, `dialog` · `rusqlite` (`bundled`) · `serde`/`serde_json` · `chrono` · `notify` · `tokio` · `reqwest` (`rustls-tls`) · `keyring` · `thiserror` · `tracing` · `globset` · Node 24 · React 19 + React Router · Vite · TypeScript 5 · ECharts 5 · Vitest + Testing Library.
+**Stack:** Rust estable (≥ 1.85, MSVC) · Tauri 2 + plugins `notification`, `autostart`, `single-instance`, `dialog` · `rusqlite` (`bundled`) · `serde`/`serde_json` · `chrono` · `notify` · `tokio` · `reqwest` (`rustls-tls`) · `keyring` · `thiserror` · `tracing` · `globset` · Node 24 · React 19 + React Router · Vite · TypeScript 6 · ECharts 5 · Vitest + Testing Library.
 
 **Spec:** `docs/superpowers/specs/2026-11-26-gestor-tokens-design.md` (leerla antes de empezar). Contratos exactos: `docs/03-arquitectura.md` (esquema SQL), `docs/04-comandos.md` (comandos de Tauri), `docs/05-ui.md` (interfaz), `docs/06-colectores-y-costes.md` (formatos de log, precios y fórmulas).
 

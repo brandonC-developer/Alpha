@@ -41,7 +41,7 @@ flowchart LR
 | Capa Tauri | `app/*` | Comandos, vigilancia, bandeja, notificaciones | `core`, Tauri |
 | Interfaz | `src/*` | 6 pantallas + bandeja | comandos |
 
-**Regla de dependencias:** `core` no importa nada de `tauri` (se comprueba con `cargo tree -p gestor_core` en la puerta 1). Los comandos solo validan, llaman a `core` y traducen errores. La interfaz solo habla con Rust por `src/api.ts`.
+**Regla de dependencias:** `core` no importa nada de `tauri` (se comprueba con `cargo tree -p gestor_core` en la puerta 1). Para que eso sea posible, `gestor_core` es **un crate aparte del workspace de Cargo**: `app/src-tauri/src/core/Cargo.toml` con `[lib] path = "mod.rs"`, y `app/src-tauri/Cargo.toml` declara `[workspace] members = [".", "src/core"]`. La capa Tauri lo reexporta con `pub use gestor_core as core;` (decisión de T1, aceptada en la fase 1). Las dependencias de `core` van en su propio `Cargo.toml`. Al leer la salida de `cargo tree`, la ruta contiene `src-tauri`, pero eso no es una dependencia. **Fechas:** siempre con `core::time::fmt_utc` (ISO 8601 con `Z`), nunca con `to_rfc3339()`. Los comandos solo validan, llaman a `core` y traducen errores. La interfaz solo habla con Rust por `src/api.ts`.
 
 ## 2. Dependencias permitidas
 
@@ -77,9 +77,9 @@ No se añade ninguna otra sin preguntarlo antes en `handoff/preguntas.md`.
 
 ## 3. Esquema SQLite exacto (`core/db/schema.sql`)
 
-```sql
-PRAGMA journal_mode = WAL;
+Los PRAGMA no van en `schema.sql`. `open_db` ejecuta `journal_mode = WAL`, `foreign_keys = ON` y `busy_timeout = 5000` antes de la transacción. Dentro de una sola transacción aplica el esquema, siembra los planes y pone `user_version = 1`, para que un fallo a medias no deje la base inservible (corrección de la fase 1).
 
+```sql
 CREATE TABLE usage_event (
   dedup_key        TEXT PRIMARY KEY,
   tool             TEXT NOT NULL CHECK (tool IN ('claude-code','antigravity','opencode')),

@@ -7,7 +7,7 @@
       "command(regex:^git add .gitignore$)",
       "command(regex:^git commit -m \"[^\"`$;&|<>]*\"$)",
       "command(regex:^cargo (test|clippy|fmt|check|build|tree)( [^;&|`$<>]*)?$)",
-      "command(regex:^npm (test|run test)( [^;&|`$<>]*)?$)",
+      "command(regex:^npm (--prefix app )?(test|run test)( --prefix app)?( [^;&|`$<>]*)?$)",
       "command(regex:^npx tsc --noEmit( [^;&|`$<>]*)?$)"
     ],
     "deny": [
