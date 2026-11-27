@@ -28,6 +28,7 @@ Claude escribe esta documentación; Antigravity la usa para programar la app en 
 | [06-colectores-y-costes.md](06-colectores-y-costes.md) | Formato de cada log, precios, fixtures, alertas y exportación |
 | [07-calidad.md](07-calidad.md) | Definición de hecho, estrategia de pruebas, seguridad y rendimiento |
 | [08-protocolo.md](08-protocolo.md) | Cómo se comunican Claude, Antigravity, opencode y el usuario |
+| [09-seguridad.md](09-seguridad.md) | Qué puede tocar cada agente: sandbox, permisos, pruebas de la fase 0 y cómo lo valida Claude |
 | [mockups/](mockups/index.html) | 6 pantallas + bandeja + navegación ([canvas](https://claude.ai/artifact/7SNJzNUbZrM38kJ7VhCAd7); copia local en `index.html`) |
 | [CHANGELOG.md](CHANGELOG.md) · [respuestas.md](respuestas.md) | Cambios en la documentación y respuestas a Antigravity |
 

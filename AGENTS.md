@@ -60,3 +60,9 @@ Si dos fuentes se contradicen, gana la de número menor y lo anotas en `handoff/
 ## 6. Entorno
 
 Windows 11 Pro · i5-12450H · 16 GB RAM · RTX 2050 4 GB · Rust estable MSVC · Node 24.22 · opencode · sqlite3 · comandos en PowerShell. Rutas con espacios: siempre entre comillas (`"E:\Proyectos\Gestior de Tokens\Alpha"`).
+
+## 7. Seguridad del equipo
+
+- Solo dentro del proyecto. Nada de borrados recursivos, instalaciones globales, registro, permisos ni apagados (`.agents/rules/seguridad.md`).
+- Un comando bloqueado no se reescribe para esquivar el bloqueo: se anota en `handoff/preguntas.md`.
+- Nunca pidas administrador ni salir del sandbox. Los límites reales los aplican Antigravity y `opencode.json`: `docs/09-seguridad.md`.

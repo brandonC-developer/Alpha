@@ -17,12 +17,12 @@ flowchart TB
   U --> N3["N3 · Antigravity Orchestrator<br/>Gemini 4 Neon High"]
   N3 -->|núcleo| N2A["N2 · implementador-nucleo<br/>Gemini 4 Hydrogen"]
   N3 -->|interfaz base| N2U["N2 · implementador-ui / qa-app / verificador<br/>Gemini 4 Hydrogen"]
-  N3 -->|revisión| RV["N2 · revisor<br/>Gemini 4 Hydrogen XHigh (pro)"]
+  N3 -->|revisión| RV["N2 · revisor<br/>Claude Sonnet 5.5 High (agy -p, §4.3)"]
   U -->|tareas con pruebas fuertes| OC["N2 · opencode<br/>deepseek-v4.1-flash-free → deepseek-flash (5 $)"]
   U -.->|puertas 3 y 7| N4G["N4 · Gemini 4 Carbon High"]
 ```
 
-Un subagente de Antigravity no puede usar Claude (§4.1). La revisión de otra familia la hace Claude en las fases 3 y 7, en Claude Code o en Antigravity cambiando el modelo de la conversación.
+Un subagente de Antigravity no puede usar Claude (§4.1), pero una sesión de `agy` lanzada por Claude desde la consola sí (§4.3). Así el `revisor` corre con Claude Sonnet 5.5 High y Claude revisa además las fases 3 y 7.
 
 | Nivel | Herramienta y modelo | Cuota que gasta | Hace | No hace nunca |
 | --- | --- | --- | --- | --- |
@@ -65,7 +65,7 @@ Por qué T13 y T15 van a opencode: son las tareas de error visible que el plan p
 2. **Con una comprobación fiable, se empieza por la intensidad baja y se sube solo tras un fallo verificado.** Empezar en el nivel más bajo y escalar tras un fallo verificado iguala o mejora al nivel máximo fijo, con menos coste (Sun et al., 2026, §8.2). Aquí la comprobación fiable son las pruebas TDD y la comparación con los mockups.
 3. **Sin comprobación fiable, se empieza en High, nunca en XHigh.** La escalera de Sun et al. exige una comprobación externa fiable, y en el núcleo los errores son silenciosos. Aun así, XHigh cuesta de 2,4 a 4,5 veces más que Low sin mejorar a High (Weinberger y Hozez, 2026), y de High a XHigh se pierden tareas que High resolvía (Sun et al., 2026). XHigh queda solo como segundo intento.
 4. **Escalar, nunca empezar por arriba** (FrugalGPT, Stanford 2023): dos fallos verificados en un nivel → el siguiente. Al final de la escalera: parar y escribir en `handoff/preguntas.md`.
-5. **Revisa una familia de modelos distinta de la que programó.** Los modelos evaluadores reconocen y prefieren sus propios textos (Panickssery et al., NeurIPS 2024). Como un subagente no puede usar Claude (§4.1), el `revisor` es Hydrogen y la revisión de otra familia la hace Claude en las fases 3 y 7. Carbon (fases 3 y 7) es otro modelo de Gemini: aporta más capacidad, no otra familia.
+5. **Revisa una familia de modelos distinta de la que programó.** Los modelos evaluadores reconocen y prefieren sus propios textos (Panickssery et al., NeurIPS 2024). Un subagente no puede usar Claude (§4.1), pero una sesión lanzada desde la consola sí (§4.3): por eso el `revisor` se lanza con `claude-sonnet-5-5-high`, y Claude revisa además las fases 3 y 7. Carbon (fases 3 y 7) es otro modelo de Gemini: aporta más capacidad, no otra familia.
 6. **No se piden «piensa más» ni «considera varias alternativas» en los prompts.** Esas frases multiplican el razonamiento de 1,6 a 7,4 veces sin más aciertos (Weinberger y Hozez, 2026). La intensidad se elige con el nivel, no con palabras (lo mismo dice la guía oficial de Claude Code, §6).
 
 ## 4. Los agentes
@@ -78,7 +78,7 @@ Por qué T13 y T15 van a opencode: son las tareas de error visible que el plan p
 | `implementador-nucleo` | `flash` (Hydrogen High); `pro` (XHigh) en el segundo intento | `auto` | T1–T10, T14, T16 con TDD | Tocar `app/src/` (salvo T1) |
 | `implementador-ui` | `flash` (Hydrogen High) | `auto` | T11, T12 y lo que opencode devuelva | Tocar `app/src-tauri/` |
 | `verificador` | `flash` | `auto` | `cargo test`, `cargo clippy`, `npm test`, `tsc`, puertas | Cambiar archivos |
-| `revisor` | `pro` (XHigh): revisa una sola vez y no hay prueba que detecte su fallo, así que no hay escalera | `sandbox` | Revisa el diff de la fase contra spec, plan y contratos | Cambiar archivos |
+| `revisor` | Lanzado desde la consola: `claude-sonnet-5-5-high` (§4.3). Invocado por el Orchestrator: `pro` (XHigh). Revisa una sola vez y ninguna prueba detecta su fallo, así que no hay escalera | `sandbox` | Revisa el diff de la fase contra spec, plan y contratos | Cambiar archivos |
 | `qa-app` | `flash` | `auto` | Navegador integrado con datos simulados: compara con los mockups | Cambiar `app/` |
 
 Nota (validada en foros e issues, 27/11/2026, §8.3):
@@ -94,7 +94,7 @@ La ventana real de Tauri (bandeja, notificaciones, logs reales) la prueba **el u
 
 opencode lee `AGENTS.md` y las skills de `.agents/skills/` sin configuración extra. Además:
 
-- `opencode.json` carga las reglas de `.agents/rules/*.md` (`instructions`). También **bloquea la edición** de `docs/**`, `AGENTS.md`, `.agents/**` y de su propia configuración, impide `git push` y `--no-verify`, y bloquea las carpetas fuera del proyecto. Probado el 26/11/2026: opencode se negó a editar un `docs/` de prueba y sí editó `app/`.
+- `opencode.json` carga las reglas de `.agents/rules/*.md` (`instructions`). **Bloquea la edición** de `docs/**`, `AGENTS.md`, `.agents/**`, `.git/**` y de su propia configuración. **Deniega todos los comandos** salvo una lista de git, cargo y npm de prueba, **oculta** las skills que no son del proyecto y bloquea la web y las carpetas fuera del proyecto. Detalle y pruebas del 26 y el 27/11/2026: `09-seguridad.md` §3.2.
 - `.opencode/agents/implementador.md` (solo T13 y T15; sigue la ficha de `implementador-ui` o de `implementador-nucleo` según la tarea) y `verificador.md`, con modelo `opencode/deepseek-v4.1-flash-free` y variante `low`. Remiten a `.agents/agents/`, que sigue siendo la fuente.
 
 Uso, desde la raíz del proyecto (o desde la copia de trabajo de la rama, ver `01-fases.md` fase 5):
@@ -104,6 +104,37 @@ opencode run --agent implementador "Ejecuta T13"                    # intensidad
 opencode run --agent implementador --variant high "Ejecuta T13"     # tras un fallo verificado
 opencode run --agent verificador "Comprueba la puerta 5"
 ```
+
+### 4.3 Claude lanza cada tarea desde la consola (una conversación por tarea)
+
+Claude Code lanza cada tarea con `agy` (la CLI de Antigravity, v1.5.18) o con `opencode`, desde la terminal y en segundo plano. Comprobado el 27/11/2026.
+
+- **Una conversación nueva por tarea.** Cada `agy -p …` sin `--continue`, y cada `opencode run …` sin `--continue`, abre una conversación limpia. Así cada tarea empieza con el contexto mínimo, que es lo que recomiendan *Lost in the Middle* (§8.2) y la guía de Claude Code (`/clear` entre tareas, §6).
+- **Modelo e intensidad exactos.** A diferencia de los subagentes (§4.1), una sesión de `agy` acepta cualquier id de `agy models` con `--model`, incluidos los de Claude. Esto resuelve la limitación de §4.1 sin depender del Orchestrator.
+
+| Papel | Modelo del primer intento | Segundo intento | Prompt (resumen) |
+| --- | --- | --- | --- |
+| `implementador-nucleo` | `gemini-4-hydrogen-high` | `gemini-4-hydrogen-xhigh` | «Lee y sigue `.agents/agents/implementador-nucleo.md` y la skill `ejecutar-tarea-tdd`. Ejecuta Tn. Al terminar escribe `handoff/Tn-resultado.md`» |
+| `implementador-ui` (T11, T12) | `gemini-4-hydrogen-high` | `gemini-4-hydrogen-xhigh` | Igual, con su ficha y `mockup-a-react` |
+| `verificador` | `gemini-4-hydrogen-medium` | — | «Sigue `.agents/agents/verificador.md`: comprueba la puerta N» |
+| `revisor` | **`claude-sonnet-5-5-high`** (otra familia, §3.5) | — | «Sigue `.agents/agents/revisor.md`: revisa la fase N» |
+| Puertas 3 y 7 | `gemini-4-carbon-high` y `claude-opus-5-5-high` | — | Los de `01-fases.md` |
+| `qa-app` | Se queda en la app de Antigravity (usa el navegador integrado) | — | — |
+| T13, T15 (opencode) | `opencode run --agent implementador "Ejecuta Tn"` | `--variant high` | §5.2 |
+
+**Plantilla** (Claude la ejecuta en `E:\Proyectos\Gestior de Tokens\Alpha`):
+
+```powershell
+agy -p "<prompt de la tabla>" --model gemini-4-hydrogen-high --mode accept-edits --settings .agents/agy-permisos.json --output-format json
+```
+
+- **Permisos.** Con `--mode accept-edits`, el modo sin pantalla (`-p`) **deniega todo comando que no esté en la lista** de `.agents/agy-permisos.json` y para la conversación. Lo denegado aparece en `denied_actions`. El detalle y las pruebas están en `09-seguridad.md` §3.1.
+  - Nunca se usan `--dangerously-skip-permissions` ni `--mode auto`. Con `auto`, `agy` deja pasar por su cuenta los comandos que considera seguros: en la prueba ejecutó `Get-Date` sin estar en la lista.
+- **Lo que no está en la lista lo hace el usuario.** `npm install`, el andamiaje de T1 con `npm create tauri-app` y cualquier instalación: Claude se lo pide al usuario, que lo ejecuta en su terminal. La lista no se amplía.
+- **Qué lee Claude** de cada tarea, para gastar poca cuota de Claude Pro: solo `status`, `denied_actions` y `usage` del JSON final, `handoff/Tn-resultado.md`, `git log -1` y `git diff --stat`. No lee la conversación entera.
+- **Escalado.** Un fallo verificado es el que informa la sesión de `verificador` o la línea de resumen de `cargo test` o `npm test`. Con dos fallos, Claude relanza la tarea en una conversación nueva con el modelo del segundo intento.
+- **Coste medido.** Cada sesión de `agy` arranca con unos 15.000 tokens de entrada (`AGENTS.md`, reglas y herramientas), medidos con `gemini-4-hydrogen-low`. Para Claude, lanzar una tarea y leer su resultado son unos pocos miles de tokens.
+- **Pendiente de la fase 0:** que una sesión `-p` cargue también `.agents/rules/` y las skills (sí cita `AGENTS.md`), y si conviene añadir `--sandbox` (pruebas S2–S3 de `09-seguridad.md`).
 
 ## 5. opencode: gratis primero, DeepSeek después (tope de 5 $)
 

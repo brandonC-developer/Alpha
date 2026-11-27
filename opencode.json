@@ -10,13 +10,45 @@
       ".agents/**": "deny",
       ".opencode/**": "deny",
       "opencode.json": "deny",
+      ".git/**": "deny",
+      ".gitignore": "deny",
       "HXqFtqPXgAAf9KE.jpg": "deny"
     },
     "bash": {
-      "*": "allow",
-      "git push*": "deny",
-      "*--no-verify*": "deny"
+      "*": "deny",
+      "cd app*": "allow",
+      "cd src-tauri*": "allow",
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git show*": "allow",
+      "git rev-parse*": "allow",
+      "git branch --show-current": "allow",
+      "git add app/*": "allow",
+      "git add src/*": "allow",
+      "git add src-tauri/*": "allow",
+      "git add handoff/*": "allow",
+      "git commit -m *": "allow",
+      "cargo test*": "allow",
+      "cargo clippy*": "allow",
+      "cargo fmt*": "allow",
+      "cargo check*": "allow",
+      "cargo build*": "allow",
+      "cargo tree*": "allow",
+      "npm test*": "allow",
+      "npm run test*": "allow",
+      "npx tsc --noEmit*": "allow",
+      "*--no-verify*": "deny",
+      "*--amend*": "deny",
+      "*--force*": "deny"
     },
-    "external_directory": "deny"
+    "skill": {
+      "*": "deny",
+      "ejecutar-tarea-tdd": "allow",
+      "mockup-a-react": "allow",
+      "cerrar-fase": "allow"
+    },
+    "external_directory": "deny",
+    "webfetch": "deny"
   }
 }

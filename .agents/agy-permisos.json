@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "command(regex:^git (status|diff|log|show|rev-parse)( [^;&|`$<>]*)?$)",
+      "command(regex:^git branch --show-current$)",
+      "command(regex:^git add (app|handoff)/[^;&|`$<>]*$)",
+      "command(regex:^git commit -m \"[^\"`$;&|<>]*\"$)",
+      "command(regex:^cargo (test|clippy|fmt|check|build|tree)( [^;&|`$<>]*)?$)",
+      "command(regex:^npm (test|run test)( [^;&|`$<>]*)?$)",
+      "command(regex:^npx tsc --noEmit( [^;&|`$<>]*)?$)"
+    ],
+    "deny": [
+      "write_file(E:/Proyectos/Gestior de Tokens/Alpha/docs)",
+      "write_file(E:/Proyectos/Gestior de Tokens/Alpha/.agents)",
+      "write_file(E:/Proyectos/Gestior de Tokens/Alpha/.opencode)",
+      "write_file(E:/Proyectos/Gestior de Tokens/Alpha/.git)",
+      "write_file(E:/Proyectos/Gestior de Tokens/Alpha/AGENTS.md)",
+      "write_file(E:/Proyectos/Gestior de Tokens/Alpha/opencode.json)",
+      "command(regex:.*--no-verify.*)",
+      "command(regex:^git (push|reset|clean|checkout|rebase).*)"
+    ]
+  }
+}

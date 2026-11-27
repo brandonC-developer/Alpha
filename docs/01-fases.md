@@ -31,6 +31,8 @@ Las fases 4 y 5 pueden ir en paralelo: la interfaz usa datos simulados hasta que
 
 Los agentes, los modelos, el peso y el razonamiento de cada tarea están en [02-agentes-y-modelos.md](02-agentes-y-modelos.md).
 
+**Quién lanza cada tarea:** Claude, desde la consola, abriendo una conversación nueva por tarea con `agy -p` o `opencode run`, con el modelo exacto de `02-agentes-y-modelos.md` §4.3. Los prompts de cada fase de este documento sirven igual si el usuario prefiere lanzarlos en la app de Antigravity con el Orchestrator. La columna «Nivel» indica el nivel de los subagentes, que solo cuenta en ese caso.
+
 ---
 
 ## Fase 0: Preparación (sin código de la app)
@@ -48,11 +50,17 @@ Los agentes, los modelos, el peso y el razonamiento de cada tarea están en [02-
 - [ ] **opencode:** instalarlo con `npm install -g --allow-scripts=opencode-ai opencode-ai` (sin `--allow-scripts`, npm bloquea el script que copia el binario y `opencode` no arranca). Configurar el proveedor **DeepSeek** (`opencode` → `/connect` → DeepSeek, con la clave de la API), recargar **5 $** en la consola de DeepSeek y hacer una consulta corta con `deepseek/deepseek-flash` y otra con `opencode/deepseek-v4.1-flash-free`, para que queden sesiones en disco. La configuración del proyecto (`opencode.json`, `.opencode/agents/`) ya está escrita.
 - [ ] **SQLite (línea de comandos):** `winget install SQLite.SQLite` y comprobar `sqlite3 --version`. Solo sirve para inspeccionar la base de opencode en la parte «Comprobar»; la app no lo usa.
 
+- [ ] **Seguridad** (`09-seguridad.md`):
+  - aplicar en Antigravity los ajustes del proyecto de §3.1 (preset `Default`, nunca `Turbo`; acceso fuera de carpetas `Deny`; reglas `deny`);
+  - crear un punto de restauración y copiar `E:\Proyectos` fuera de E: (§3.3);
+  - ejecutar el script de S1 antes de abrir Antigravity con el sandbox.
+
 **Comprobar (prompt para Antigravity, en modo Orchestrator):**
 
 > Ejecuta la fase 0 de `docs/01-fases.md`, parte «Comprobar». No escribas código. Escribe los resultados en `handoff/fase-0-informe.md`.
 
 - [ ] Cargados: `AGENTS.md`, las reglas de `.agents/rules/`, las skills de `.agents/skills/` y los 5 subagentes de `.agents/agents/`. Para cada subagente, su modelo real y sus herramientas (invocarlo y pedirle que las liste sin escribir nada).
+- [ ] **Pruebas de seguridad S2–S5** de `09-seguridad.md` §4, en ese orden. S3 la ejecuta el usuario. Si S2 o S3 fallan, se usa el Plan B de §3.1 y no se empieza la fase 1 sin que Claude lo confirme.
 - [ ] **Modelo real de cada nivel** (`02-agentes-y-modelos.md` §4.1): invocar `verificador` una vez con su `flash` y otra con `Model: pro`, y anotar qué id de modelo aparece en su `transcript.jsonl` (se espera `gemini-4-hydrogen-tiered-high` y `…-tiered-xhigh`). No probar ids exactos en `model:`: según los issues #1150 y #1242 de `antigravity-cli`, el subagente deja de registrarse.
 - [ ] **Cuota de los modelos Claude en Antigravity:** en «View Usage», anotar si Claude Opus/Sonnet 5.5 tienen barras de 5 h y semanal propias o comparten las de Gemini. Hacer una consulta corta con Claude Sonnet 5.5 y comprobar qué barra baja.
 - [ ] **Antigravity cuenta la caché dentro de la entrada:** en 3 conversaciones distintas de `%USERPROFILE%\.gemini\antigravity\brain\`, comprobar en `transcript.jsonl` que `input_tokens ≥ cache_read_tokens` en todos los pasos con `source = MODEL`. Anotar cuántos pasos se revisaron y si alguno no cumple. **Solo números: no copiar ningún texto del transcript.**
