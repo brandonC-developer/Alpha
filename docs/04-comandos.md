@@ -7,7 +7,7 @@ La interfaz habla con Rust solo con estos comandos (`invoke`) y eventos (`listen
 ```ts
 export type Tool = 'claude-code' | 'antigravity' | 'opencode';
 export type Provider = 'anthropic' | 'google' | 'deepseek' | 'other';
-export type PlanId = 'claude-pro' | 'google-ai-pro' | 'deepseek';
+export type PlanId = 'claude-pro' | 'google-ai-pro' | 'google-ai-pro-claude' | 'deepseek';
 export type CostKind = 'real' | 'api_equivalent' | 'unknown';
 export type WindowName = '5h' | 'weekly';
 

@@ -80,10 +80,10 @@ Fuentes: [`docs/00-investigacion.md`](../../00-investigacion.md).
 - Solo lectura sobre `%USERPROFILE%\.claude`, `%USERPROFILE%\.gemini` y la carpeta de opencode. Nunca se escribe en ellas.
 - Los parsers **solo** deserializan los campos de `docs/06-colectores-y-costes.md` §1. Nunca se guarda ni se registra `content`, `thinking`, `display`, prompts ni rutas de archivos de código.
 - `dedup_key`: Claude Code `cc:<message.id>:<requestId>`; Antigravity `ag:<conversación>:<step_index>`; opencode `oc:<id del mensaje>`.
-- Tokens: `input` sin caché; `output` incluye razonamiento. Antigravity: `input = input_tokens − cache_read_tokens` (mínimo 0).
+- Tokens: `input` sin caché; `output` incluye razonamiento. Antigravity: `input = input_tokens` (no incluye la caché; medido en la fase 0).
 - Coste: `(input×p.input + output×p.output + cache_write×p.cache_write + cache_read×p.cache_read) / 1_000_000`. Sin precio → `cost_usd = NULL`, `cost_kind = 'unknown'`.
 - `cost_kind`: plan `payg` → `real`; `subscription` → `api_equivalent`.
-- Plan por evento: `claude-code` → `claude-pro`; `antigravity` → `google-ai-pro`; `opencode` + DeepSeek → `deepseek`.
+- Plan por evento: `claude-code` → `claude-pro`; `antigravity` → `google-ai-pro` (modelos Gemini) o `google-ai-pro-claude` (modelos `claude-*` dentro de Antigravity, que tienen su propia cuota: fase 0, 27/11/2026); `opencode` + DeepSeek → `deepseek`.
 - Ventana de 5 h: empieza con el primer evento posterior al fin de la anterior y dura exactamente 5 h. Ventana semanal: las últimas 168 h.
 - Peso en ventanas = `cost_usd` (equivalente API). Eventos sin precio no pesan y se cuentan aparte.
 - Límite = media de las calibraciones (`usado / (porcentaje / 100)`). Sin calibrar → sin porcentaje.
@@ -187,10 +187,11 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 ```rust
 #[test] fn esquema_se_aplica_una_vez() { /* open_db dos veces sobre el mismo archivo temporal → user_version = 1 y sin error */ }
 #[test] fn tablas_existen() { /* las 10 tablas de 03-arquitectura §3 existen */ }
-#[test] fn planes_sembrados() { /* 3 filas en plan; cambiar monthly_fee_usd y reabrir → se conserva */ }
+#[test] fn planes_sembrados() { /* 4 filas en plan; cambiar monthly_fee_usd y reabrir → se conserva */ }
 #[test] fn plan_por_herramienta() {
     assert_eq!(plan_for(Tool::ClaudeCode, Provider::Anthropic), "claude-pro");
     assert_eq!(plan_for(Tool::Antigravity, Provider::Google), "google-ai-pro");
+    assert_eq!(plan_for(Tool::Antigravity, Provider::Anthropic), "google-ai-pro-claude");
     assert_eq!(plan_for(Tool::Opencode, Provider::DeepSeek), "deepseek");
 }
 #[test] fn dedup_key_es_unica() { /* insertar dos filas con la misma dedup_key con INSERT OR IGNORE → 1 fila */ }
@@ -253,13 +254,15 @@ test('la app monta la navegación', () => { render(<App />); expect(screen.getBy
 
 **Interfaces:**
 - Consume: `Collector`, `ParseOutcome` (T3).
-- Produce: `struct AntigravityCollector { root: PathBuf }`, `default_root()` = `%USERPROFILE%\.gemini\antigravity\brain`; solo archivos `transcript.jsonl` bajo `*/.system_generated/logs/`. `session_id` = nombre de la carpeta de la conversación.
+- Produce: `struct AntigravityCollector { roots: Vec<PathBuf> }`, `default_roots()` = `%USERPROFILE%\.gemini\antigravity\brain` y `%USERPROFILE%\.gemini\antigravity-cli\brain`; solo archivos `transcript.jsonl` bajo `*/.system_generated/logs/` (nunca `transcript_full.jsonl`, que es una copia, ni `chunks/`). `session_id` = nombre de la carpeta de la conversación.
 
 - [ ] **Paso 1: pruebas que fallan**
 
 ```rust
-#[test] fn resta_cache_de_input() { /* paso con input_tokens 26040 y cache_read_tokens 14167 → input 11873, cache_read 14167, output 509 */ }
-#[test] fn input_nunca_negativo() { /* input_tokens 100, cache_read_tokens 150 → input 0 */ }
+#[test] fn input_sin_restar_cache() { /* paso con input_tokens 26040 y cache_read_tokens 14167 → input 26040, cache_read 14167, output 509 */ }
+#[test] fn input_menor_que_cache() { /* input_tokens 100, cache_read_tokens 150 → input 100, cache_read 150 (es lo normal: 94 % de los pasos medidos) */ }
+#[test] fn ignora_transcript_full() { /* transcript_full.jsonl idéntico junto a transcript.jsonl → no se lee; siguen 3 eventos */ }
+#[test] fn lee_tambien_la_cli() { /* segunda raíz antigravity-cli/brain con 1 paso de modelo → 1 evento más */ }
 #[test] fn solo_pasos_de_modelo() { /* USER_INPUT y pasos sin input_tokens → ignorados */ }
 #[test] fn dedup_por_step_index() { /* mismo step_index dos veces → 1 evento, dedup_key "ag:<uuid>:8" */ }
 #[test] fn modelo_y_proveedor() { /* "gemini-4-neon-xhigh" → Provider::Google, tool Antigravity */ }
@@ -530,6 +533,9 @@ test('fuente con errores', /* colector con 2 errores → "2 líneas no se pudier
 
 ```rust
 #[test] fn opencode_deepseek() { /* fixture → un evento DeepSeek (plan deepseek, real) y uno de opencode/deepseek-v4.1-flash-free (provider other, plan deepseek, real, 0 $) */ }
+#[test] fn no_escribe_en_la_carpeta_de_opencode() { /* fixture opencode.db en WAL dentro de una carpeta temporal → tras leer, la carpeta tiene los mismos archivos y fechas: se leyó una copia (06 §1.3) */ }
+#[test] fn ignora_step_finish_y_abortados() { /* partes step-finish con los mismos tokens → no suman; mensaje sin time.completed → no es evento */ }
+#[test] fn tokens_de_opencode() { /* input 551, output 416, reasoning 121, cache.read 8448 → input 551, output 416 + 121 = 537, cache_read 8448 */ }
 #[test] fn balance_usd() { /* {"is_available":true,"balance_infos":[{"currency":"USD","total_balance":"8.42",…}]} → 8.42 */ }
 #[test] fn balance_malformado() { /* JSON sin balance_infos → Err(Parse) */ }
 #[test] #[ignore] fn keyring_ida_y_vuelta() { /* set → get → delete con un nombre de prueba; se ejecuta a mano en Windows */ }

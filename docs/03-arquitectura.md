@@ -15,7 +15,7 @@ flowchart LR
       CORE --> DB[("SQLite WAL<br/>%APPDATA%\GestorTokens\gestor.db")]
     end
     CC[".claude\projects\*.jsonl"] -. "solo lectura" .-> CORE
-    AG[".gemini\antigravity\brain\*\transcript.jsonl"] -. "solo lectura" .-> CORE
+    AG[".gemini\antigravity y antigravity-cli\brain\*\logs\transcript.jsonl"] -. "solo lectura" .-> CORE
     OC["sesiones de opencode"] -. "solo lectura" .-> CORE
     KR["Administrador de credenciales"] <--> CORE
     CMD --> WN["Notificaciones y bandeja de Windows"]
@@ -167,7 +167,7 @@ CREATE TABLE cost_recalc_log (
 );
 
 CREATE TABLE plan (
-  id              TEXT PRIMARY KEY,            -- 'claude-pro','google-ai-pro','deepseek'
+  id              TEXT PRIMARY KEY,            -- 'claude-pro','google-ai-pro','google-ai-pro-claude','deepseek'
   name            TEXT NOT NULL,
   provider        TEXT NOT NULL,
   kind            TEXT NOT NULL CHECK (kind IN ('subscription','payg')),

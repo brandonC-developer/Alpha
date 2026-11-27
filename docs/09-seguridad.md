@@ -14,7 +14,7 @@ Objetivo: que ni Antigravity ni opencode puedan borrar ni cambiar nada fuera del
 | Capa | Qué impide | Dónde | Estado |
 | --- | --- | --- | --- |
 | 1. UAC | Cambiar Windows, Program Files y el registro de la máquina | Windows | Activo y medido. Regla: **nunca aceptar un aviso de UAC** mientras trabaja un agente, y nunca abrir Antigravity, opencode ni la terminal «como administrador» |
-| 2. Sandbox de terminal de Antigravity | Que los comandos escriban fuera del proyecto o vean tu perfil | Antigravity, ajustes del proyecto | Disponible en este PC (Windows 11 26H2, compilación 26300.9974; requiere 24H2 con la actualización de agosto de 2026). **Se prueba en la fase 0 antes de usarlo** (§4), por el bug abierto #1323 |
+| 2. Sandbox de terminal de Antigravity | Que los comandos escriban fuera del proyecto o vean tu perfil | Antigravity | **Descartado tras la fase 0 (27/11/2026).** Con el proyecto en E:, el sandbox también deja en solo lectura el propio proyecto (S2: «Access is denied»). No dejó permisos huérfanos (S3). Se usa el Plan B: permisos sin pantalla con lista (§3.1) |
 | 3. Permisos de Antigravity | Archivos fuera del proyecto y comandos peligrosos | Antigravity, ajustes del proyecto | Pendiente de aplicar (usuario, fase 0, §3) |
 | 4. Permisos de opencode | Cualquier comando que no esté en la lista; editar la configuración o `.git`; cargar otras skills; leer la web | `opencode.json` | **Aplicado y probado** el 27/11/2026 (§3.2) |
 | 5. Git y copia de seguridad | Perder trabajo si algo sale mal | Repositorio y otro disco o la nube | Un commit por tarea (ya está). Copia y punto de restauración antes de la fase 1 (usuario) |

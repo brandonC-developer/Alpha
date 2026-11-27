@@ -134,7 +134,8 @@ agy -p "<prompt de la tabla>" --model gemini-4-hydrogen-high --mode accept-edits
 - **Qué lee Claude** de cada tarea, para gastar poca cuota de Claude Pro: solo `status`, `denied_actions` y `usage` del JSON final, `handoff/Tn-resultado.md`, `git log -1` y `git diff --stat`. No lee la conversación entera.
 - **Escalado.** Un fallo verificado es el que informa la sesión de `verificador` o la línea de resumen de `cargo test` o `npm test`. Con dos fallos, Claude relanza la tarea en una conversación nueva con el modelo del segundo intento.
 - **Coste medido.** Cada sesión de `agy` arranca con unos 15.000 tokens de entrada (`AGENTS.md`, reglas y herramientas), medidos con `gemini-4-hydrogen-low`. Para Claude, lanzar una tarea y leer su resultado son unos pocos miles de tokens.
-- **Pendiente de la fase 0:** que una sesión `-p` cargue también `.agents/rules/` y las skills (sí cita `AGENTS.md`), y si conviene añadir `--sandbox` (pruebas S2–S3 de `09-seguridad.md`).
+- **Comprobado en la fase 0:** una sesión `-p` carga `AGENTS.md`, las reglas `always_on`, las 3 skills y los 5 subagentes. Las reglas `glob` se cargan al tocar `app/`. **No se usa `--sandbox`**: con el proyecto en E:, impide escribir también dentro del proyecto (`09-seguridad.md` §4, S2).
+- **Cuota antes de lanzar:** Claude consulta `agy -p "/usage" --output-format json`, que gasta 0 tokens. Si a un grupo le queda menos del 10 % de la ventana de 5 h, espera al reinicio en lugar de lanzar la tarea.
 
 ## 5. opencode: gratis primero, DeepSeek después (tope de 5 $)
 

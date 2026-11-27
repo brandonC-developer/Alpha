@@ -28,26 +28,56 @@ Regla común: **solo se deserializan los campos de estas tablas.** Los structs d
 
 ### 1.2 Antigravity
 
-- **Carpeta:** `%USERPROFILE%\.gemini\antigravity\brain\<conversación>\.system_generated\logs\`
-- **Archivo:** `transcript.jsonl`
+Medido en la fase 0 (27/11/2026) en 63 conversaciones: 21 de la app y 42 de la CLI `agy`.
+
+- **Carpetas** (se leen las dos):
+  - `%USERPROFILE%\.gemini\antigravity\brain\<conversación>\.system_generated\logs\`: la app de Antigravity;
+  - `%USERPROFILE%\.gemini\antigravity-cli\brain\<conversación>\.system_generated\logs\`: la CLI `agy`, incluidas las tareas que lanza Claude (`02-agentes-y-modelos.md` §4.3).
+- **Archivo:** solo `transcript.jsonl`. Junto a él está `transcript_full.jsonl`, con exactamente el mismo uso en las 63 conversaciones. **Leer los dos contaría todo dos veces.** Las copias de `logs\chunks\` tampoco se leen.
 - **Es evento si:** `source == "MODEL"` y existe `input_tokens`.
+- **Privacidad:** la línea trae también `thinking` (texto del razonamiento) y `tool_calls`. No se leen ni se guardan.
 
 | Campo del log | Campo de `UsageEvent` | Notas |
 | --- | --- | --- |
-| carpeta `<conversación>` + `step_index` | `dedup_key = "ag:<conversación>:<step_index>"` | |
-| `model` | `model` | p. ej. `gemini-4-neon-xhigh`, `gemini-4-hydrogen-high` |
+| carpeta `<conversación>` + `step_index` | `dedup_key = "ag:<conversación>:<step_index>"` | Los UUID no se repiten entre la app y la CLI |
+| `model` | `model` | Ids vistos: `gemini-4-neon-*`, `gemini-4-hydrogen-*`, `gemini-4-hydrogen-tiered-high`, `gemini-4-hydrogen-tiered-xhigh` (subagentes `flash` y `pro`), `gemini-4-argon-medium`, `gemini-3.8-flash-medium`, `gemini-pro-orchestrator-neon`, `gemini-flash-worker-agy` y `claude-opus-5-5-high` |
 | `created_at` | `ts_utc` | |
 | carpeta `<conversación>` | `session_id` | |
 | — | `project = None` | El transcript no da la carpeta de trabajo de forma fiable |
-| `input_tokens − cache_read_tokens` | `input` | Mínimo 0. **Confirmar en la fase 0** con 3 conversaciones distintas |
+| `input_tokens` | `input` | **No incluye la caché.** Medido: en 15 de 18 pasos de una conversación de la app, `input_tokens < cache_read_tokens`, lo que es imposible si la incluyera. No se resta nada |
 | `cache_read_tokens` | `cache_read` | |
 | — | `cache_write = 0` | El log no lo da |
 | `output_tokens` | `output` | |
-| — | `reasoning = 0` | El log no lo da por separado |
+| — | `reasoning = 0` | El log no da el número por separado |
+
+- **Plan:** los modelos `claude-*` gastan la cuota «Claude and GPT models» de Google AI Pro y van al plan `google-ai-pro-claude` (§2). El resto, a `google-ai-pro`.
+- **Cuota real sin gastar tokens:** `agy -p "/usage" --output-format json` devuelve, para cada grupo («Gemini Models» y «Claude and GPT models»), la fracción restante de la ventana semanal y de la de 5 h, con su hora de reinicio. Consume 0 tokens. Claude decidirá antes de T8 si la app lo usa para calibrar sola; eso supondría ejecutar `agy` y salir de la regla «solo `api.deepseek.com`».
 
 ### 1.3 opencode (DeepSeek)
 
-**Pendiente de confirmar en la fase 0.** opencode no está instalado. Cuando se instale, la fase 0 anota en `handoff/fase-0-informe.md`: la carpeta de datos en Windows, si guarda las sesiones en archivos JSON o en SQLite, y un ejemplo de mensaje del asistente **sin contenido**. Con eso Claude completa esta sección antes de la fase 6. Se espera, según la documentación pública de opencode, un mensaje con `id`, `sessionID`, `modelID`, `providerID`, `time.created` y `tokens { input, output, reasoning, cache { read, write } }`.
+Medido en la fase 0 (27/11/2026) con opencode 1.19.6.
+
+- **Base:** `%USERPROFILE%\.local\share\opencode\opencode.db` (`opencode db path`), SQLite en modo WAL. Existen las tablas `message` y `part` (v1) y `session_message` (v2), pero `session_message` está vacía: se lee `message`.
+- **Cómo la abre la app, sin escribir en la carpeta de opencode:** abrirla con `sqlite3 -readonly` **crea** `opencode.db-wal` y `opencode.db-shm` (medido: aparecieron a las 09:31:31 sin opencode abierto). Con `?mode=ro&immutable=1` no se crea nada, pero no se ve lo que está aún en el `-wal`. Por eso la app **copia `opencode.db` y, si existe, `opencode.db-wal`** a su propia carpeta temporal y lee la copia. Así no toca la carpeta de opencode y ve los datos más recientes.
+- **Es evento si:** `json_extract(data,'$.role') = 'assistant'` y existe `$.time.completed`. Los mensajes abortados no tienen `time.completed` y llevan tokens 0.
+- **Cursor:** `time_created` del último mensaje leído. Los mensajes se actualizan en sitio, así que solo cuentan cuando ya tienen `time.completed`.
+
+| Campo de `message.data` | Campo de `UsageEvent` | Notas |
+| --- | --- | --- |
+| `message.id` | `dedup_key = "oc:<id>"` | |
+| `providerID` | pista de proveedor | `deepseek` → DeepSeek; `opencode` → Other (gratuitos, 0 $ real) |
+| `modelID` | `model` | Vistos: `deepseek-flash` (de pago) y `deepseek-v4.1-flash-free` |
+| `time.created` (ms) | `ts_utc` | |
+| `session_id` (columna) | `session_id` | |
+| `path.cwd` | `project` | Solo el último componente de la ruta, como en Claude Code |
+| `tokens.input` | `input` | No incluye la caché: `total = input + output + reasoning + cache.read` (medido en 6 mensajes) |
+| `tokens.cache.read` / `tokens.cache.write` | `cache_read` / `cache_write` | |
+| `tokens.output` + `tokens.reasoning` | `output` | Se suman: en opencode `output` no incluye el razonamiento, y en `UsageEvent` sí (igual que en Claude Code) |
+| `tokens.reasoning` | `reasoning` | Parte de `output`; solo informativo |
+| `cost` | — | Lo calcula opencode con precios de models.dev, sin la tarifa de hora punta. No se usa como gasto real: el coste lo calcula la app (§3) |
+
+- **No se leen las partes `step-finish`:** repiten exactamente los tokens de su mensaje (6 de 6 coincidencias). Sumarlas contaría dos veces.
+- **Nunca se lee la tabla `credential`** ni las columnas de texto de `part`.
 
 ## 2. Plan de cada evento
 
@@ -55,6 +85,7 @@ Regla común: **solo se deserializan los campos de estas tablas.** Los structs d
 | --- | --- | --- | --- |
 | `claude-code` | `anthropic` | `claude-pro` | `api_equivalent` (o `unknown` sin precio) |
 | `antigravity` | `google` | `google-ai-pro` | `api_equivalent` (o `unknown`) |
+| `antigravity` con modelo `claude-*` | `anthropic` | `google-ai-pro-claude` | `api_equivalent` (precios de Anthropic) |
 | `opencode` | `deepseek` | `deepseek` | `real` (o `unknown`) |
 | cualquiera | `other` | según la herramienta | `unknown` |
 
@@ -81,7 +112,8 @@ Formato:
 ### 3.2 Pendiente antes de la fase 3 (lo hace Claude)
 
 - **Gemini 4 (Neon, Hydrogen, Carbon):** Google solo publica precio de API para Gemini 4 Argon, que se retira. Antes de la fase 3, Claude revisa `ai.google.dev/gemini-api/docs/pricing`; si siguen sin precio, se usa el de Argon como aproximación para los tres (marcado `approximate: true`) y se documenta aquí. Mientras tanto, los eventos de Antigravity salen como «sin precio» (`unknown`), que es el comportamiento correcto.
-- **Cuota de Google AI Pro en dólares:** el usuario la confirma en la fase 0 (se usa para el rendimiento del plan).
+- **Ids sin precio:** `gemini-pro-orchestrator-*`, `gemini-flash-worker-agy` y `gemini-3.8-flash-*` (vistos en la fase 0) no tienen precio de API: salen como «sin precio» (`unknown`). Los `gemini-4-hydrogen-tiered-*` los cubre el patrón `gemini-4-*`.
+- **Cuota de Google AI Pro en dólares:** el usuario la confirma en la fase 0 (se usa para el rendimiento del plan). Es una sola cuota mensual para los planes `google-ai-pro` y `google-ai-pro-claude`; el rendimiento se calcula sumando los dos.
 - **DeepSeek hora punta:** la v1 usa una sola tarifa por modelo. Si la diferencia entre el gasto calculado y la bajada de saldo supera el 10 % en un mes, se abre una tarea nueva para tarifas por franja horaria.
 
 ## 4. Fixtures exactos
@@ -112,7 +144,7 @@ Se copian literalmente en `app/src-tauri/tests/fixtures/`. Todos los textos son 
 {"step_index":9,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-21T17:50:02Z","model":"gemini-4-hydrogen-high","input_tokens":100,"cache_read_tokens":150,"output_tokens":20}
 ```
 
-Resultado esperado: 3 eventos (pasos 1, 8 y 9); el paso 8 con `input` 11873; el 9 con `input` 0.
+Resultado esperado: 3 eventos (pasos 1, 8 y 9); el paso 8 con `input` 26040 y `cache_read` 14167; el 9 con `input` 100 y `cache_read` 150. Junto a él va una copia idéntica llamada `transcript_full.jsonl`, que no debe leerse.
 
 ## 5. Alertas
 

@@ -48,7 +48,7 @@ La app lee los registros que las herramientas ya escriben en el disco (sin proxy
 - Planes: **Claude Pro**, **Google AI Pro** (Gemini app, Gemini CLI y Antigravity con Gemini 4), **DeepSeek API** de pago por uso como reserva.
 - Registros locales verificados el 26/11/2026:
   - Claude Code: `%USERPROFILE%\.claude\projects\<proyecto>\<sesión>.jsonl`, con `message.usage` = `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `output_tokens`, `output_tokens_details.thinking_tokens`; `message.model`; `message.id`.
-  - Antigravity: `%USERPROFILE%\.gemini\antigravity\brain\<conversación>\.system_generated\logs\transcript.jsonl`, con `model` (p. ej. `gemini-4-neon-xhigh`), `input_tokens`, `cache_read_tokens`, `output_tokens`, `created_at`, `step_index`.
+  - Antigravity: `%USERPROFILE%\.gemini\antigravity\brain\` y `%USERPROFILE%\.gemini\antigravity-cli\brain\` (`<conversación>\.system_generated\logs\transcript.jsonl`; nunca `transcript_full.jsonl`, que es una copia), con `model` (p. ej. `gemini-4-neon-xhigh`), `input_tokens`, `cache_read_tokens`, `output_tokens`, `created_at`, `step_index`.
 - Interfaz en español.
 - Todo gratis salvo el gasto de DeepSeek, que el usuario controla.
 
@@ -155,7 +155,7 @@ Nombres alineados con la convención OpenTelemetry GenAI (`gen_ai.usage.input_to
 - **Líneas rotas:** una línea JSON incompleta al final (el agente aún está escribiendo) no avanza el offset; se reintenta en la siguiente lectura. Una línea corrupta en medio se salta y se cuenta en `ingest_error`.
 - **Entrada sin caché, siempre.** Las herramientas no cuentan igual:
   - Claude Code: `input_tokens` ya excluye la caché → `input = input_tokens`.
-  - Antigravity: en los logs vistos, `input_tokens` incluye la caché leída (paso con 26.040 de entrada y 14.167 de caché) → `input = input_tokens − cache_read_tokens`. La fase 0 lo confirma con más muestras; si no se cumple, se anota en `handoff/preguntas.md`.
+  - Antigravity: `input_tokens` **no** incluye la caché → `input = input_tokens`. Medido en la fase 0 (27/11/2026): en 1.632 de 1.744 pasos con caché, `input_tokens < cache_read_tokens` (19 modelos, app y CLI). La suposición inicial, que restaba la caché, era errónea.
 - **Definiciones del panel:**
   - *Turno* = un evento con uso (una llamada al modelo).
   - *Sesión* = un archivo de sesión de Claude Code o una conversación de Antigravity.
@@ -187,7 +187,7 @@ Ninguna de las dos suscripciones publica sus límites en tokens, así que la app
 - **Uso no medido:** si el usuario también usa claude.ai o la app de Gemini, el % real será mayor que el medido. La pantalla lo recuerda junto a la barra.
 - **Ritmo:** con el consumo de los últimos 30 minutos, la app estima a qué hora se agotaría la ventana.
 - **DeepSeek:** saldo real con `GET /user/balance` cada 15 minutos (si hay clave) y coste real por evento con su tabla de precios.
-Planes iniciales: `claude-pro` (Claude Code), `google-ai-pro` (Antigravity, Gemini CLI), `deepseek` (opencode con DeepSeek).
+Planes iniciales: `claude-pro` (Claude Code), `google-ai-pro` (Antigravity, Gemini CLI: modelos Gemini), `google-ai-pro-claude` (modelos Claude dentro de Antigravity, con cuota propia), `deepseek` (opencode con DeepSeek).
 
 ### 8.6 Coste de API
 
