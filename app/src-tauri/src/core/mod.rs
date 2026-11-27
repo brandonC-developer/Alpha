@@ -1,4 +1,5 @@
 pub mod agy_usage;
+pub mod alerts;
 pub mod collectors;
 pub mod cost;
 pub mod db;

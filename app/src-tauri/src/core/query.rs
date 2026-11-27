@@ -1571,6 +1571,16 @@ fn compute_anomalies_for_tool(
     tool: Tool,
     out: &mut HashMap<(Tool, String), bool>,
 ) -> Result<()> {
+    for (session_id, (anomalous, _)) in compute_tool_anomalies(conn, tool)? {
+        out.insert((tool, session_id), anomalous);
+    }
+    Ok(())
+}
+
+pub(crate) fn compute_tool_anomalies(
+    conn: &Connection,
+    tool: Tool,
+) -> Result<HashMap<String, (bool, f64)>> {
     let mut stmt = conn.prepare(
         "SELECT session_id, MAX(ts_utc) AS end_ts, SUM(input + cache_write + cache_read + output)
          FROM usage_event
@@ -1584,10 +1594,11 @@ fn compute_anomalies_for_tool(
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
 
+    let mut out = HashMap::with_capacity(list.len());
     for (idx, (session_id, total_tokens)) in list.iter().enumerate() {
         let hist_start = idx.saturating_sub(30);
         let history = &list[hist_start..idx];
-        let anomalous = if history.len() >= 10 {
+        let (anomalous, mean) = if history.len() >= 10 {
             let n = history.len() as f64;
             let mean = history.iter().map(|(_, t)| *t as f64).sum::<f64>() / n;
             let variance = history
@@ -1599,14 +1610,14 @@ fn compute_anomalies_for_tool(
                 .sum::<f64>()
                 / n;
             let stddev = variance.sqrt();
-            (*total_tokens as f64) > (mean + 3.0 * stddev)
+            ((*total_tokens as f64) > (mean + 3.0 * stddev), mean)
         } else {
-            false
+            (false, 0.0)
         };
-        out.insert((tool, session_id.clone()), anomalous);
+        out.insert(session_id.clone(), (anomalous, mean));
     }
 
-    Ok(())
+    Ok(out)
 }
 
 fn parse_utc(s: &str, context: &str) -> Result<DateTime<Utc>> {

@@ -491,6 +491,19 @@ pub fn window_status(
     Ok(statuses)
 }
 
+pub(crate) fn active_5h_block_start(
+    conn: &Connection,
+    plan_id: &str,
+    now: DateTime<Utc>,
+) -> Result<Option<DateTime<Utc>>> {
+    let events = load_plan_events(conn, plan_id, now)?;
+    let points: Vec<(DateTime<Utc>, f64)> = events
+        .into_iter()
+        .map(|ev| (ev.ts, ev.cost_usd.unwrap_or(0.0)))
+        .collect();
+    Ok(current_block(&points, now, 5).map(|b| b.start))
+}
+
 struct PlanEvent {
     ts: DateTime<Utc>,
     cost_usd: Option<f64>,
