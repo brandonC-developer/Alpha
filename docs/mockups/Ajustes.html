@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ajustes · Gestor de Tokens (mockup)</title>
+<link rel="stylesheet" href="mockups.css">
+</head>
+<body>
+<div class="shell">
+
+<nav class="nav" aria-label="Principal">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>Gestor de Tokens</div>
+  <ul>
+    <li><a href="Panel.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Panel<kbd>Ctrl 1</kbd></a></li>
+    <li><a href="Costes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Costes<kbd>Ctrl 2</kbd></a></li>
+    <li><a href="Planes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M4 15h10M4 11h14M4 7h6"/></svg>Planes<kbd>Ctrl 3</kbd></a></li>
+    <li><a href="Sesiones.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Sesiones<kbd>Ctrl 4</kbd></a></li>
+    <li><a href="Fuentes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6"/></svg>Fuentes<kbd>Ctrl 5</kbd></a></li>
+    <li><a href="Ajustes.html" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Ajustes<kbd>Ctrl 6</kbd></a></li>
+  </ul>
+  <!-- datos: get_today_summary → windows -->
+  <div class="nav-foot">
+    <div class="mini"><span>Claude Pro · 5 h</span><b>62 %</b></div>
+    <div class="minibar"><i style="width:62%"></i></div>
+    <div class="mini"><span>Google AI Pro · 5 h</span><b class="t-warn">81 %</b></div>
+    <div class="minibar warn"><i style="width:81%"></i></div>
+    <p class="faint">Actualizado hace 4 s</p>
+  </div>
+</nav>
+<main class="main">
+
+<header class="head"><div><h1>Ajustes</h1></div></header>
+<nav class="tabs" aria-label="Secciones"><a href="#general" aria-current="true">General</a><a href="#precios">Precios</a><a href="#alertas">Alertas</a><a href="#deepseek">DeepSeek</a><a href="#datos">Datos</a></nav>
+<section class="card" id="general"><h2 class="label">General</h2>
+  <div class="form"><label>Tema<select><option>Oscuro</option><option>Claro</option><option>Sistema</option></select></label><label class="check"><input type="checkbox"> Abrir con Windows (en la bandeja)</label></div></section>
+<section class="card" id="precios"><header class="sec"><h2 class="label">Precios · $ por millón de tokens</h2><button class="btn ghost">Añadir precio</button></header>
+  <!-- datos: get_prices · upsert_price → RecalcResult -->
+  <table><thead><tr><th>Modelo</th><th>Desde</th><th class="n">Entrada</th><th class="n">Salida</th><th class="n">Escr. caché</th><th class="n">Lect. caché</th><th>Fuente</th></tr></thead><tbody>
+    <tr><td>claude-opus-5-5*</td><td>01/01/2026</td><td class="n">4,00</td><td class="n">20,00</td><td class="n">5,00</td><td class="n">0,20</td><td><a href="#">Anthropic</a></td></tr>
+    <tr><td>claude-sonnet-5-5* <span class="tag warn">aprox.</span></td><td>01/01/2026</td><td class="n">2,00</td><td class="n">10,00</td><td class="n">2,50</td><td class="n">0,10</td><td><a href="#">DevelopersDigest</a></td></tr>
+    <tr><td>deepseek-v4-flash* <span class="tag warn">aprox.</span></td><td>01/01/2026</td><td class="n">0,14</td><td class="n">0,28</td><td class="n">0,00</td><td class="n">0,0028</td><td><a href="#">DeepSeek</a></td></tr>
+    <tr class="missing"><td>gemini-4-* <span class="tag">sin precio</span></td><td colspan="5" class="muted">Google no publica precio de API para Neon, Hydrogen ni Carbon</td><td><button class="btn ghost small">Añadir</button></td></tr>
+  </tbody></table>
+  <p class="notice ok small">Recalculadas 120 llamadas: 4,10 $ → 5,30 $</p>
+  <h3 class="label mt">Historial de recálculos</h3>
+  <ul class="small muted"><li>26/11 12:04 · claude-opus-5-5* desde 20/11 · 120 llamadas · 4,10 $ → 5,30 $</li></ul></section>
+<section class="card" id="alertas"><h2 class="label">Alertas</h2>
+  <div class="form"><label>Ventana de 5 h<input value="80, 95"> %</label><label>Semanal<input value="80"> %</label><label>Presupuesto de DeepSeek<input value="80"> %</label><label class="check"><input type="checkbox" checked> Avisar de sesiones fuera de lo normal</label></div></section>
+<section class="card" id="deepseek"><h2 class="label">DeepSeek</h2>
+  <div class="form"><label>Clave de la API<input type="password" value="" placeholder="Guardada en el Administrador de credenciales de Windows"></label><p class="small"><span class="tag ok">Guardada</span> La clave nunca se muestra ni sale de este PC salvo hacia api.deepseek.com.</p><div class="actions"><button class="btn">Cambiar</button><button class="btn ghost">Borrar</button></div></div></section>
+<section class="card" id="datos"><h2 class="label">Datos</h2>
+  <div class="actions"><button class="btn">Exportar CSV (FOCUS)</button><button class="btn ghost">Exportar JSON</button><button class="btn ghost">Importar JSON</button></div>
+  <p class="small muted">Base de datos: %APPDATA%\GestorTokens\gestor.db · 41 MB · 13.048 llamadas desde el 02/09/2026</p></section>
+</main>
+</div>
+<button class="theme" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'">Cambiar tema</button>
+</body>
+</html>

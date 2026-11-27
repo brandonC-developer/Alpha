@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fuentes · Gestor de Tokens (mockup)</title>
+<link rel="stylesheet" href="mockups.css">
+</head>
+<body>
+<div class="shell">
+
+<nav class="nav" aria-label="Principal">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>Gestor de Tokens</div>
+  <ul>
+    <li><a href="Panel.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Panel<kbd>Ctrl 1</kbd></a></li>
+    <li><a href="Costes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Costes<kbd>Ctrl 2</kbd></a></li>
+    <li><a href="Planes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M4 15h10M4 11h14M4 7h6"/></svg>Planes<kbd>Ctrl 3</kbd></a></li>
+    <li><a href="Sesiones.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Sesiones<kbd>Ctrl 4</kbd></a></li>
+    <li><a href="Fuentes.html" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6"/></svg>Fuentes<kbd>Ctrl 5</kbd></a></li>
+    <li><a href="Ajustes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Ajustes<kbd>Ctrl 6</kbd></a></li>
+  </ul>
+  <!-- datos: get_today_summary → windows -->
+  <div class="nav-foot">
+    <div class="mini"><span>Claude Pro · 5 h</span><b>62 %</b></div>
+    <div class="minibar"><i style="width:62%"></i></div>
+    <div class="mini"><span>Google AI Pro · 5 h</span><b class="t-warn">81 %</b></div>
+    <div class="minibar warn"><i style="width:81%"></i></div>
+    <p class="faint">Actualizado hace 4 s</p>
+  </div>
+</nav>
+<main class="main">
+
+<header class="head"><div><h1>Fuentes</h1><p class="muted">La app solo lee estas carpetas; nunca escribe en ellas ni guarda el contenido</p></div><button class="btn">Reescanear <kbd>R</kbd></button></header>
+<section class="sources">
+  <!-- datos: get_sources -->
+  <article class="card src"><header class="sec"><h2><i class="dot p-anthropic"></i>Claude Code</h2><span class="tag ok">Leyendo</span></header>
+    <code>%USERPROFILE%\.claude\projects</code>
+    <dl><div><dt>Archivos</dt><dd>214</dd></div><div><dt>Llamadas</dt><dd>9.812</dd></div><div><dt>Último evento</dt><dd>hace 4 s</dd></div><div><dt>Errores</dt><dd>0</dd></div></dl></article>
+  <article class="card src"><header class="sec"><h2><i class="dot p-google"></i>Antigravity</h2><span class="tag ok">Leyendo</span></header>
+    <code>%USERPROFILE%\.gemini\antigravity\brain</code>
+    <dl><div><dt>Conversaciones</dt><dd>21</dd></div><div><dt>Llamadas</dt><dd>3.140</dd></div><div><dt>Último evento</dt><dd>hace 2 min</dd></div><div><dt>Errores</dt><dd>0</dd></div></dl></article>
+  <article class="card src alert"><header class="sec"><h2><i class="dot p-deepseek"></i>opencode</h2><span class="tag warn">Con errores</span></header>
+    <code>%USERPROFILE%\.local\share\opencode</code>
+    <dl><div><dt>Sesiones</dt><dd>12</dd></div><div><dt>Llamadas</dt><dd>96</dd></div><div><dt>Último evento</dt><dd>ayer</dd></div><div><dt>Errores</dt><dd class="t-warn">2</dd></div></dl>
+    <p class="small">2 líneas no se pudieron leer</p>
+    <ul class="errs small"><li><code>storage\message\ses_4f…\msg_9a.json</code> línea 1: JSON incompleto</li><li><code>storage\message\ses_4f…\msg_9b.json</code> línea 1: JSON incompleto</li></ul></article>
+</section>
+<!-- estado: fuente no encontrada → «No se encontró .gemini\antigravity\brain. ¿Está instalado Antigravity?» -->
+</main>
+</div>
+<button class="theme" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'">Cambiar tema</button>
+</body>
+</html>

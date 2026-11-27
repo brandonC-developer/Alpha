@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sesiones · Gestor de Tokens (mockup)</title>
+<link rel="stylesheet" href="mockups.css">
+</head>
+<body>
+<div class="shell">
+
+<nav class="nav" aria-label="Principal">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>Gestor de Tokens</div>
+  <ul>
+    <li><a href="Panel.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Panel<kbd>Ctrl 1</kbd></a></li>
+    <li><a href="Costes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Costes<kbd>Ctrl 2</kbd></a></li>
+    <li><a href="Planes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M4 15h10M4 11h14M4 7h6"/></svg>Planes<kbd>Ctrl 3</kbd></a></li>
+    <li><a href="Sesiones.html" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Sesiones<kbd>Ctrl 4</kbd></a></li>
+    <li><a href="Fuentes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6"/></svg>Fuentes<kbd>Ctrl 5</kbd></a></li>
+    <li><a href="Ajustes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Ajustes<kbd>Ctrl 6</kbd></a></li>
+  </ul>
+  <!-- datos: get_today_summary → windows -->
+  <div class="nav-foot">
+    <div class="mini"><span>Claude Pro · 5 h</span><b>62 %</b></div>
+    <div class="minibar"><i style="width:62%"></i></div>
+    <div class="mini"><span>Google AI Pro · 5 h</span><b class="t-warn">81 %</b></div>
+    <div class="minibar warn"><i style="width:81%"></i></div>
+    <p class="faint">Actualizado hace 4 s</p>
+  </div>
+</nav>
+<main class="main">
+
+<header class="head"><div><h1>Sesiones</h1><p class="muted">61 sesiones · 1 fuera de lo normal</p></div><div class="row"><div class="seg" role="group" aria-label="Rango"><button aria-pressed="true">7 días</button><button>30 días</button><button>90 días</button><button>Todo</button></div><label class="check"><input type="checkbox"> Solo anómalas</label></div></header>
+<div class="grid-side">
+<article class="card">
+  <!-- datos: get_sessions -->
+  <table class="sortable">
+    <thead><tr><th aria-sort="descending">Inicio ▾</th><th>Agente</th><th>Proyecto</th><th>Modelo principal</th><th class="n">Duración</th><th class="n">Turnos</th><th class="n">Tokens</th><th class="n">Coste</th></tr></thead>
+    <tbody><tr class="anom" aria-label="Sesión anómala: 12× tu media" aria-selected="true"><td><span class="tag bad">12×</span> 26/11 13:02</td><td>Antigravity</td><td>—</td><td>gemini-4-neon-xhigh</td><td class="n">2 h 10 min</td><td class="n">58</td><td class="n">41,2 M</td><td class="n"><span class="tag">sin precio</span></td></tr><tr><td>26/11 10:15</td><td>Claude Code</td><td>Alpha</td><td>claude-opus-5-5</td><td class="n">1 h 42 min</td><td class="n">37</td><td class="n">28,9 M</td><td class="n">14,20 $ eq.</td></tr><tr><td>25/11 19:40</td><td>Claude Code</td><td>AZ-900</td><td>claude-opus-5-5</td><td class="n">58 min</td><td class="n">22</td><td class="n">17,4 M</td><td class="n">8,65 $ eq.</td></tr><tr><td>25/11 18:05</td><td>opencode</td><td>Alpha</td><td>deepseek-v4-flash</td><td class="n">24 min</td><td class="n">9</td><td class="n">6,1 M</td><td class="n">0,94 $</td></tr><tr><td>25/11 11:30</td><td>Antigravity</td><td>—</td><td>gemini-4-hydrogen-high</td><td class="n">1 h 05 min</td><td class="n">31</td><td class="n">12,8 M</td><td class="n"><span class="tag">sin precio</span></td></tr><tr><td>24/11 21:12</td><td>opencode</td><td>Alpha</td><td>qwen3:4b</td><td class="n">6 min</td><td class="n">4</td><td class="n">0,3 M</td><td class="n">0,00 $</td></tr></tbody>
+  </table>
+</article>
+<aside class="card side" aria-label="Desglose de la sesión">
+  <!-- datos: get_session_detail · Esc cierra -->
+  <header class="sec"><h2 class="label">Antigravity · 26/11 13:02</h2><button class="x" aria-label="Cerrar">×</button></header>
+  <p class="small muted">58 llamadas · 41,2 M tokens · 12× tu media · sin contenido: solo cifras</p>
+  <table class="compact"><thead><tr><th>Hora</th><th>Modelo</th><th class="n">Entrada</th><th class="n">Caché</th><th class="n">Salida</th></tr></thead><tbody>
+    <tr><td>13:02:11</td><td>neon-xhigh</td><td class="n">14,2 K</td><td class="n">0</td><td class="n">799</td></tr>
+    <tr><td>13:04:05</td><td>neon-xhigh</td><td class="n">11,9 K</td><td class="n">14,2 K</td><td class="n">509</td></tr>
+    <tr class="hot"><td>13:41:37</td><td>hydrogen-high</td><td class="n">1,9 M</td><td class="n">212 K</td><td class="n">3,1 K</td></tr>
+    <tr><td>13:42:20</td><td>hydrogen-high</td><td class="n">48,0 K</td><td class="n">2,1 M</td><td class="n">1,2 K</td></tr>
+    <tr><td colspan="5" class="muted small">… 54 llamadas más</td></tr>
+  </tbody></table>
+</aside>
+</div>
+</main>
+</div>
+<button class="theme" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'">Cambiar tema</button>
+</body>
+</html>

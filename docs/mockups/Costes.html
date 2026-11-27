@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Costes · Gestor de Tokens (mockup)</title>
+<link rel="stylesheet" href="mockups.css">
+</head>
+<body>
+<div class="shell">
+
+<nav class="nav" aria-label="Principal">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>Gestor de Tokens</div>
+  <ul>
+    <li><a href="Panel.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Panel<kbd>Ctrl 1</kbd></a></li>
+    <li><a href="Costes.html" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Costes<kbd>Ctrl 2</kbd></a></li>
+    <li><a href="Planes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M4 15h10M4 11h14M4 7h6"/></svg>Planes<kbd>Ctrl 3</kbd></a></li>
+    <li><a href="Sesiones.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Sesiones<kbd>Ctrl 4</kbd></a></li>
+    <li><a href="Fuentes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6"/></svg>Fuentes<kbd>Ctrl 5</kbd></a></li>
+    <li><a href="Ajustes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Ajustes<kbd>Ctrl 6</kbd></a></li>
+  </ul>
+  <!-- datos: get_today_summary → windows -->
+  <div class="nav-foot">
+    <div class="mini"><span>Claude Pro · 5 h</span><b>62 %</b></div>
+    <div class="minibar"><i style="width:62%"></i></div>
+    <div class="mini"><span>Google AI Pro · 5 h</span><b class="t-warn">81 %</b></div>
+    <div class="minibar warn"><i style="width:81%"></i></div>
+    <p class="faint">Actualizado hace 4 s</p>
+  </div>
+</nav>
+<main class="main">
+
+<header class="head">
+  <div><h1>Costes</h1><p class="muted">28 oct – hoy · precios vigentes en la fecha de cada llamada</p></div>
+  <div class="row"><div class="seg" role="group" aria-label="Rango"><button>7 días</button><button aria-pressed="true">30 días</button><button>90 días</button><button>Todo</button></div><div class="seg" role="group" aria-label="Tipo de coste"><button aria-pressed="true">Ambos</button><button>Real</button><button>Equivalente API</button></div></div>
+</header>
+<section class="kpis" aria-label="Resumen de costes">
+  <!-- datos: get_costs → realUsd, apiEquivalentUsd, feesUsd, yield -->
+  
+  <article class="card kpi">
+    <header><h2 class="label">Gasto real</h2><span class="delta ">+3,84 $</span></header>
+    <p class="big">3,84 $</p>
+    <p class="sub">DeepSeek · local 0 $</p>
+    <svg class="spark" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true"><rect x="1.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="11.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="21.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="31.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="41.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="51.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="61.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="71.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="81.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="91.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="101.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="111.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="121.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="131.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="141.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="151.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="161.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="171.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="181.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="191.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="201.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="211.0" y="10.5" width="8.0" height="23.5" rx="1"/><rect x="221.0" y="7.0" width="8.0" height="27.0" rx="1"/><rect x="231.0" y="20.1" width="8.0" height="13.9" rx="1"/><rect x="241.0" y="19.4" width="8.0" height="14.6" rx="1"/><rect x="251.0" y="31.8" width="8.0" height="2.2" rx="1"/><rect x="261.0" y="25.9" width="8.0" height="8.1" rx="1"/><rect x="271.0" y="5.8" width="8.0" height="28.2" rx="1"/><rect x="281.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="291.0" y="28.6" width="8.0" height="5.4" rx="1"/></svg>
+  </article>
+  
+  <article class="card kpi">
+    <header><h2 class="label">Equivalente API</h2><span class="delta up">+164 %</span></header>
+    <p class="big">298,40 $</p>
+    <p class="sub">Claude Pro · Antigravity sin precio</p>
+    <svg class="spark" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true"><rect x="1.0" y="27.4" width="8.0" height="6.6" rx="1"/><rect x="11.0" y="22.8" width="8.0" height="11.2" rx="1"/><rect x="21.0" y="14.8" width="8.0" height="19.2" rx="1"/><rect x="31.0" y="13.8" width="8.0" height="20.2" rx="1"/><rect x="41.0" y="28.6" width="8.0" height="5.4" rx="1"/><rect x="51.0" y="15.5" width="8.0" height="18.5" rx="1"/><rect x="61.0" y="13.7" width="8.0" height="20.3" rx="1"/><rect x="71.0" y="20.9" width="8.0" height="13.1" rx="1"/><rect x="81.0" y="16.0" width="8.0" height="18.0" rx="1"/><rect x="91.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="101.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="111.0" y="27.7" width="8.0" height="6.3" rx="1"/><rect x="121.0" y="25.5" width="8.0" height="8.5" rx="1"/><rect x="131.0" y="11.2" width="8.0" height="22.8" rx="1"/><rect x="141.0" y="16.3" width="8.0" height="17.7" rx="1"/><rect x="151.0" y="11.0" width="8.0" height="23.0" rx="1"/><rect x="161.0" y="21.3" width="8.0" height="12.7" rx="1"/><rect x="171.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="181.0" y="31.6" width="8.0" height="2.4" rx="1"/><rect x="191.0" y="20.3" width="8.0" height="13.7" rx="1"/><rect x="201.0" y="11.1" width="8.0" height="22.9" rx="1"/><rect x="211.0" y="14.4" width="8.0" height="19.6" rx="1"/><rect x="221.0" y="26.7" width="8.0" height="7.3" rx="1"/><rect x="231.0" y="17.8" width="8.0" height="16.2" rx="1"/><rect x="241.0" y="12.0" width="8.0" height="22.0" rx="1"/><rect x="251.0" y="28.1" width="8.0" height="5.9" rx="1"/><rect x="261.0" y="21.4" width="8.0" height="12.6" rx="1"/><rect x="271.0" y="15.5" width="8.0" height="18.5" rx="1"/><rect x="281.0" y="19.0" width="8.0" height="15.0" rx="1"/><rect x="291.0" y="20.7" width="8.0" height="13.3" rx="1"/></svg>
+  </article>
+  
+  <article class="card kpi">
+    <header><h2 class="label">Cuota pagada</h2><span class="delta ">=</span></header>
+    <p class="big">20,00 $</p>
+    <p class="sub">Claude Pro · Google AI Pro sin confirmar</p>
+    <svg class="spark" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true"><rect x="1.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="11.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="21.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="31.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="41.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="51.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="61.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="71.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="81.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="91.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="101.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="111.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="121.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="131.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="141.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="151.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="161.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="171.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="181.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="191.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="201.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="211.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="221.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="231.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="241.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="251.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="261.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="271.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="281.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="291.0" y="0.0" width="8.0" height="34.0" rx="1"/></svg>
+  </article>
+  
+  <article class="card kpi">
+    <header><h2 class="label">Rendimiento</h2><span class="delta up">+5,2×</span></header>
+    <p class="big">14,9×</p>
+    <p class="sub">equivalente / cuota</p>
+    <svg class="spark" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true"><rect x="1.0" y="27.4" width="8.0" height="6.6" rx="1"/><rect x="11.0" y="22.8" width="8.0" height="11.2" rx="1"/><rect x="21.0" y="14.8" width="8.0" height="19.2" rx="1"/><rect x="31.0" y="13.8" width="8.0" height="20.2" rx="1"/><rect x="41.0" y="28.6" width="8.0" height="5.4" rx="1"/><rect x="51.0" y="15.5" width="8.0" height="18.5" rx="1"/><rect x="61.0" y="13.7" width="8.0" height="20.3" rx="1"/><rect x="71.0" y="20.9" width="8.0" height="13.1" rx="1"/><rect x="81.0" y="16.0" width="8.0" height="18.0" rx="1"/><rect x="91.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="101.0" y="32.0" width="8.0" height="2.0" rx="1"/><rect x="111.0" y="27.7" width="8.0" height="6.3" rx="1"/><rect x="121.0" y="25.5" width="8.0" height="8.5" rx="1"/><rect x="131.0" y="11.2" width="8.0" height="22.8" rx="1"/><rect x="141.0" y="16.3" width="8.0" height="17.7" rx="1"/><rect x="151.0" y="11.0" width="8.0" height="23.0" rx="1"/><rect x="161.0" y="21.3" width="8.0" height="12.7" rx="1"/><rect x="171.0" y="0.0" width="8.0" height="34.0" rx="1"/><rect x="181.0" y="31.6" width="8.0" height="2.4" rx="1"/><rect x="191.0" y="20.3" width="8.0" height="13.7" rx="1"/><rect x="201.0" y="11.1" width="8.0" height="22.9" rx="1"/><rect x="211.0" y="14.4" width="8.0" height="19.6" rx="1"/><rect x="221.0" y="26.7" width="8.0" height="7.3" rx="1"/><rect x="231.0" y="17.8" width="8.0" height="16.2" rx="1"/><rect x="241.0" y="12.0" width="8.0" height="22.0" rx="1"/><rect x="251.0" y="28.1" width="8.0" height="5.9" rx="1"/><rect x="261.0" y="21.4" width="8.0" height="12.6" rx="1"/><rect x="271.0" y="15.5" width="8.0" height="18.5" rx="1"/><rect x="281.0" y="19.0" width="8.0" height="15.0" rx="1"/><rect x="291.0" y="20.7" width="8.0" height="13.3" rx="1"/></svg>
+  </article>
+</section>
+<p class="notice">El equivalente API es una referencia: con tu suscripción no pagas por token</p>
+<p class="notice warn"><b>412 llamadas sin precio</b> (gemini-4-neon-xhigh, gemini-4-hydrogen-high…). No se cuentan como 0. <a href="Ajustes.html#precios">Añadir precio</a></p>
+<!-- estado: unpriced vacío → sin esta banda -->
+<section class="grid2 wide-left">
+  <article class="card">
+    <header class="sec"><h2 class="label">Coste por día</h2><p class="legend"><span><i class="sw solid"></i>Real</span><span><i class="sw hatched"></i>Equivalente API</span></p></header>
+    <!-- datos: get_costs → byDay -->
+    <svg class="chart" viewBox="0 0 760 220" role="img" aria-label="Coste por día: real en barras sólidas, equivalente API rayado">
+  <defs><pattern id="rayas" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" class="hatch-bg"/><line x1="0" y1="0" x2="0" y2="6" class="hatch"/></pattern></defs>
+  <text x="0" y="14" class="axis">31 $</text><text x="0" y="196" class="axis">0 $</text>
+  <line x1="50" x2="760" y1="192" y2="192" class="baseline"/>
+  <rect x="52.0" y="157.3" width="19.7" height="34.7" fill="url(#rayas)"/><rect class="b-real" x="52.0" y="192.0" width="19.7" height="0.0"/><rect x="75.7" y="132.7" width="19.7" height="59.3" fill="url(#rayas)"/><rect class="b-real" x="75.7" y="192.0" width="19.7" height="0.0"/><rect x="99.3" y="90.5" width="19.7" height="101.5" fill="url(#rayas)"/><rect class="b-real" x="99.3" y="192.0" width="19.7" height="0.0"/><rect x="123.0" y="85.0" width="19.7" height="107.0" fill="url(#rayas)"/><rect class="b-real" x="123.0" y="192.0" width="19.7" height="0.0"/><rect x="146.7" y="163.6" width="19.7" height="28.4" fill="url(#rayas)"/><rect class="b-real" x="146.7" y="192.0" width="19.7" height="0.0"/><rect x="170.3" y="93.9" width="19.7" height="98.1" fill="url(#rayas)"/><rect class="b-real" x="170.3" y="192.0" width="19.7" height="0.0"/><rect x="194.0" y="84.6" width="19.7" height="107.4" fill="url(#rayas)"/><rect class="b-real" x="194.0" y="192.0" width="19.7" height="0.0"/><rect x="217.7" y="122.6" width="19.7" height="69.4" fill="url(#rayas)"/><rect class="b-real" x="217.7" y="192.0" width="19.7" height="0.0"/><rect x="241.3" y="96.7" width="19.7" height="95.3" fill="url(#rayas)"/><rect class="b-real" x="241.3" y="192.0" width="19.7" height="0.0"/><rect x="265.0" y="184.2" width="19.7" height="7.8" fill="url(#rayas)"/><rect class="b-real" x="265.0" y="192.0" width="19.7" height="0.0"/><rect x="288.7" y="184.4" width="19.7" height="7.6" fill="url(#rayas)"/><rect class="b-real" x="288.7" y="192.0" width="19.7" height="0.0"/><rect x="312.3" y="158.8" width="19.7" height="33.2" fill="url(#rayas)"/><rect class="b-real" x="312.3" y="192.0" width="19.7" height="0.0"/><rect x="336.0" y="146.9" width="19.7" height="45.1" fill="url(#rayas)"/><rect class="b-real" x="336.0" y="192.0" width="19.7" height="0.0"/><rect x="359.7" y="71.2" width="19.7" height="120.8" fill="url(#rayas)"/><rect class="b-real" x="359.7" y="192.0" width="19.7" height="0.0"/><rect x="383.3" y="98.1" width="19.7" height="93.9" fill="url(#rayas)"/><rect class="b-real" x="383.3" y="192.0" width="19.7" height="0.0"/><rect x="407.0" y="70.4" width="19.7" height="121.6" fill="url(#rayas)"/><rect class="b-real" x="407.0" y="192.0" width="19.7" height="0.0"/><rect x="430.7" y="124.6" width="19.7" height="67.4" fill="url(#rayas)"/><rect class="b-real" x="430.7" y="192.0" width="19.7" height="0.0"/><rect x="454.3" y="12.0" width="19.7" height="180.0" fill="url(#rayas)"/><rect class="b-real" x="454.3" y="192.0" width="19.7" height="0.0"/><rect x="478.0" y="179.1" width="19.7" height="12.9" fill="url(#rayas)"/><rect class="b-real" x="478.0" y="192.0" width="19.7" height="0.0"/><rect x="501.7" y="119.6" width="19.7" height="72.4" fill="url(#rayas)"/><rect class="b-real" x="501.7" y="192.0" width="19.7" height="0.0"/><rect x="525.3" y="70.9" width="19.7" height="121.1" fill="url(#rayas)"/><rect class="b-real" x="525.3" y="192.0" width="19.7" height="0.0"/><rect x="549.0" y="85.7" width="19.7" height="104.0" fill="url(#rayas)"/><rect class="b-real" x="549.0" y="189.6" width="19.7" height="2.4"/><rect x="572.7" y="150.8" width="19.7" height="38.5" fill="url(#rayas)"/><rect class="b-real" x="572.7" y="189.3" width="19.7" height="2.7"/><rect x="596.3" y="104.9" width="19.7" height="85.7" fill="url(#rayas)"/><rect class="b-real" x="596.3" y="190.6" width="19.7" height="1.4"/><rect x="620.0" y="74.0" width="19.7" height="116.5" fill="url(#rayas)"/><rect class="b-real" x="620.0" y="190.5" width="19.7" height="1.5"/><rect x="643.7" y="160.6" width="19.7" height="31.2" fill="url(#rayas)"/><rect class="b-real" x="643.7" y="191.8" width="19.7" height="0.2"/><rect x="667.3" y="124.3" width="19.7" height="66.8" fill="url(#rayas)"/><rect class="b-real" x="667.3" y="191.2" width="19.7" height="0.8"/><rect x="691.0" y="91.0" width="19.7" height="98.1" fill="url(#rayas)"/><rect class="b-real" x="691.0" y="189.2" width="19.7" height="2.8"/><rect x="714.7" y="109.0" width="19.7" height="79.5" fill="url(#rayas)"/><rect class="b-real" x="714.7" y="188.6" width="19.7" height="3.4"/><rect x="738.3" y="121.2" width="19.7" height="70.2" fill="url(#rayas)"/><rect class="b-real" x="738.3" y="191.5" width="19.7" height="0.5"/>
+  <text x="50" y="214" class="axis">28/10</text><text x="730" y="214" class="axis">hoy</text>
+</svg>
+  </article>
+  <article class="card">
+    <header class="sec"><h2 class="label">Rendimiento por suscripción</h2></header>
+    <!-- datos: get_costs → yield -->
+    <div class="yield"><div><b>Claude Pro</b><span class="muted small">20,00 $/mes · equivalente 298,40 $</span></div><p class="big2">14,9×</p></div>
+    <div class="yield"><div><b>Google AI Pro</b><span class="muted small">cuota sin confirmar · 412 llamadas sin precio</span></div><p class="big2 muted">—</p></div>
+    <h3 class="label mt">DeepSeek este mes</h3>
+    <!-- datos: get_costs → deepseekBudget, monthProjection -->
+    <div class="bar" role="progressbar" aria-valuenow="38" aria-valuemin="0" aria-valuemax="100" aria-label="Presupuesto de DeepSeek"><i style="width:38%"></i></div>
+    <p class="small"><b>3,84 $</b> de 10,00 $ · saldo 8,42 $ · proyección del mes 5,10 $</p>
+  </article>
+</section>
+<section class="grid2">
+  <article class="card">
+    <header class="sec"><h2 class="label">Por modelo</h2></header>
+    <table><thead><tr><th>Modelo</th><th>Tipo</th><th class="n">Turnos</th><th class="n">Coste</th></tr></thead><tbody>
+      <tr><td><i class="dot p-anthropic"></i>claude-opus-5-5</td><td><span class="tag hatched-tag">equivalente</span></td><td class="n">201</td><td class="n">298,40 $</td></tr>
+      <tr><td><i class="dot p-deepseek"></i>deepseek-v4-flash</td><td><span class="tag real">real</span></td><td class="n">11</td><td class="n">3,84 $</td></tr>
+      <tr><td><i class="dot p-local"></i>qwen3:4b</td><td><span class="tag real">real</span></td><td class="n">4</td><td class="n">0,00 $</td></tr>
+      <tr><td><i class="dot p-google"></i>gemini-4-neon-xhigh</td><td><span class="tag">sin precio</span></td><td class="n">64</td><td class="n">—</td></tr>
+    </tbody></table>
+  </article>
+  <article class="card">
+    <header class="sec"><h2 class="label">Por proyecto</h2></header>
+    <!-- datos: get_costs → byProject -->
+    <table><thead><tr><th>Proyecto</th><th class="n">Sesiones</th><th class="n">Media</th><th class="n">Coste</th></tr></thead><tbody>
+      <tr><td>AZ-900</td><td class="n">24</td><td class="n">7,10 $</td><td class="n">170,40 $</td></tr>
+      <tr><td>Alpha</td><td class="n">9</td><td class="n">9,92 $</td><td class="n">89,30 $</td></tr>
+      <tr><td>Portafolio</td><td class="n">14</td><td class="n">2,90 $</td><td class="n">40,54 $</td></tr>
+      <tr><td class="muted">(sin proyecto)</td><td class="n">14</td><td class="n">—</td><td class="n">—</td></tr>
+    </tbody></table>
+  </article>
+</section>
+</main>
+</div>
+<button class="theme" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'">Cambiar tema</button>
+</body>
+</html>

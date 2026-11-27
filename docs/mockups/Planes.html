@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planes · Gestor de Tokens (mockup)</title>
+<link rel="stylesheet" href="mockups.css">
+</head>
+<body>
+<div class="shell">
+
+<nav class="nav" aria-label="Principal">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>Gestor de Tokens</div>
+  <ul>
+    <li><a href="Panel.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Panel<kbd>Ctrl 1</kbd></a></li>
+    <li><a href="Costes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Costes<kbd>Ctrl 2</kbd></a></li>
+    <li><a href="Planes.html" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M4 15h10M4 11h14M4 7h6"/></svg>Planes<kbd>Ctrl 3</kbd></a></li>
+    <li><a href="Sesiones.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Sesiones<kbd>Ctrl 4</kbd></a></li>
+    <li><a href="Fuentes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6"/></svg>Fuentes<kbd>Ctrl 5</kbd></a></li>
+    <li><a href="Ajustes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Ajustes<kbd>Ctrl 6</kbd></a></li>
+  </ul>
+  <!-- datos: get_today_summary → windows -->
+  <div class="nav-foot">
+    <div class="mini"><span>Claude Pro · 5 h</span><b>62 %</b></div>
+    <div class="minibar"><i style="width:62%"></i></div>
+    <div class="mini"><span>Google AI Pro · 5 h</span><b class="t-warn">81 %</b></div>
+    <div class="minibar warn"><i style="width:81%"></i></div>
+    <p class="faint">Actualizado hace 4 s</p>
+  </div>
+</nav>
+<main class="main">
+
+<header class="head"><div><h1>Planes y límites</h1><p class="muted">Ventana de 5 h desde tu primer mensaje · semana = últimas 168 h</p></div></header>
+<section class="plans">
+  <!-- datos: get_plans -->
+  <article class="card plan">
+    <header class="sec"><h2><i class="dot p-anthropic"></i>Claude Pro</h2><span class="muted small">20,00 $/mes · Claude Code</span></header>
+    <div class="win"><div class="winhead"><b>Ventana de 5 h</b><span><b>62 %</b> · reinicia 15:10</span></div><div class="bar " role="progressbar" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100"><i style="width:62%"></i><span class="mark" style="left:80%"></span></div><p class="small muted">7,8 $ equivalentes de 12,6 $ estimados · a este ritmo no se agota antes del reinicio</p></div>
+    <div class="win"><div class="winhead"><b>Semanal</b><span><b>41 %</b></span></div><div class="bar " role="progressbar" aria-valuenow="41" aria-valuemin="0" aria-valuemax="100"><i style="width:41%"></i><span class="mark" style="left:80%"></span></div><p class="small muted">calibrado 2 veces · última hoy 11:02</p></div>
+    <p class="notice small">No incluye lo que uses en la web o la app móvil (claude.ai, Gemini), que comparten este límite</p>
+    <footer class="actions"><button class="btn">Calibrar</button><button class="btn ghost">Editar cuota</button></footer>
+  </article>
+  <article class="card plan alert">
+    <header class="sec"><h2><i class="dot p-google"></i>Google AI Pro</h2><span class="muted small">cuota sin confirmar · Antigravity</span></header>
+    <div class="win"><div class="winhead"><b>Ventana de 5 h</b><span class="t-warn"><b>81 %</b> · se agota ~14:20</span></div><div class="bar warn" role="progressbar" aria-valuenow="81" aria-valuemin="0" aria-valuemax="100"><i style="width:81%"></i><span class="mark" style="left:80%"></span></div><p class="small muted">Reinicia 16:40 · 412 llamadas sin precio no cuentan</p></div>
+    <div class="win"><div class="winhead"><b>Semanal</b><span class="muted">Sin calibrar</span></div><div class="bar off"><i style="width:0"></i></div><p class="small muted">Sin calibrar: se muestra el consumo, pero no el porcentaje · 423 M tokens esta semana</p></div>
+    <p class="notice small">No incluye lo que uses en la web o la app móvil (claude.ai, Gemini), que comparten este límite</p>
+    <footer class="actions"><button class="btn">Calibrar</button><button class="btn ghost">Editar cuota</button></footer>
+  </article>
+  <article class="card plan">
+    <header class="sec"><h2><i class="dot p-deepseek"></i>DeepSeek</h2><span class="muted small">pago por uso · opencode</span></header>
+    <div class="row3"><div><span class="label">Saldo</span><p class="big2">8,42 $</p></div><div><span class="label">Este mes</span><p class="big2">3,84 $</p></div><div><span class="label">Presupuesto</span><p class="big2">10 $</p></div></div>
+    <div class="bar " role="progressbar" aria-valuenow="38" aria-valuemin="0" aria-valuemax="100"><i style="width:38%"></i><span class="mark" style="left:80%"></span></div>
+    <p class="small muted">Saldo consultado hace 6 min en api.deepseek.com</p>
+    <footer class="actions"><button class="btn ghost">Editar presupuesto</button></footer>
+  </article>
+  <article class="card plan">
+    <header class="sec"><h2><i class="dot p-local"></i>Local (Ollama)</h2><span class="muted small">sin límite · opencode</span></header>
+    <div class="row3"><div><span class="label">Tokens este mes</span><p class="big2">1,0 M</p></div><div><span class="label">Coste</span><p class="big2">0 $</p></div><div><span class="label">Modelo</span><p class="big2 small2">qwen3:4b</p></div></div>
+  </article>
+</section>
+<!-- estado: diálogo de calibración -->
+<dialog open class="card dialog" aria-labelledby="dlg-t">
+  <h2 id="dlg-t">Calibrar Claude Pro · ventana de 5 h</h2>
+  <p class="muted">En Claude Code escribe <code>/usage</code> y copia el porcentaje de la sesión actual</p>
+  <label>Porcentaje que muestra<input type="number" min="1" max="100" value="62"> %</label>
+  <p class="small muted">Ahora mismo la app mide 7,8 $ equivalentes en esta ventana → límite estimado 12,6 $</p>
+  <footer class="actions"><button class="btn">Guardar</button><button class="btn ghost">Cancelar</button></footer>
+</dialog>
+</main>
+</div>
+<button class="theme" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'">Cambiar tema</button>
+</body>
+</html>
