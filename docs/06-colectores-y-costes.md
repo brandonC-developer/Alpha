@@ -47,8 +47,8 @@ Medido en la fase 0 (27/11/2026) en 63 conversaciones: 21 de la app y 42 de la C
 | `input_tokens` | `input` | **No incluye la caché.** Medido: en 15 de 18 pasos de una conversación de la app, `input_tokens < cache_read_tokens`, lo que es imposible si la incluyera. No se resta nada |
 | `cache_read_tokens` | `cache_read` | |
 | — | `cache_write = 0` | El log no lo da |
-| `output_tokens` | `output` | |
-| — | `reasoning = 0` | El log no da el número por separado |
+| `output_tokens` | `output` | **Incluye el razonamiento.** Comparado con ccusage el 27/11/2026: ccusage lee `conversations/<id>.db` (protobuf con `candidatesTokenCount` y `thoughtsTokenCount` separados) y da entre un 35 % y un 58 % menos de salida, con la misma entrada. Es la coherente con la convención de la app (la salida incluye el razonamiento, como en Claude Code) y con cómo cobra Google (el razonamiento se paga como salida) |
+| — | `reasoning = 0` | El transcript no lo da por separado. Mejora futura: leer `thoughtsTokenCount` de `conversations/<id>.db` (protobuf, WAL, solo leyendo una copia) |
 
 - **Plan:** los modelos `claude-*` gastan la cuota «Claude and GPT models» de Google AI Pro y van al plan `google-ai-pro-claude` (§2). El resto, a `google-ai-pro`.
 - **Cuota real sin gastar tokens:** `agy -p "/usage" --output-format json` devuelve, para cada grupo («Gemini Models» y «Claude and GPT models»), la fracción restante de la ventana semanal y de la de 5 h, con su hora de reinicio. Consume 0 tokens. Claude decidirá antes de T8 si la app lo usa para calibrar sola; eso supondría ejecutar `agy` y salir de la regla «solo `api.deepseek.com`».

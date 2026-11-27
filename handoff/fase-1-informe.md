@@ -9,7 +9,7 @@ Fecha: 2026-11-27 · Lanzado por Claude desde la consola, una conversación por 
 | `cargo test` y `npm test` en verde | Cumplida | 11 pruebas de Rust (`db.rs` 9, `smoke.rs` 1, otra 1) y 1 de Vitest. Las volvió a ejecutar Claude tras la corrección |
 | `cargo clippy -- -D warnings` sin avisos | Cumplida | `--all-targets`, código de salida 0; `cargo fmt --check` correcto |
 | `cargo tree -p gestor_core -e normal` sin `tauri` | Cumplida | Solo `chrono`, `rusqlite`, `serde`, `thiserror` y sus dependencias. La ruta contiene `src-tauri`, pero no es una dependencia |
-| `npm run tauri dev` abre la ventana «Gestor de Tokens» | **Pendiente del usuario** | |
+| `npm run tauri dev` abre la ventana «Gestor de Tokens» | Cumplida | Confirmado por el usuario el 27/11/2026 |
 | 2 commits con los mensajes del plan; informe | Cumplida | `5f973b4`, `6de180b` y la corrección `50c1494`; este informe |
 
 ## Rutas tocadas
