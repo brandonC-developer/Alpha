@@ -1,0 +1,5 @@
+{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-21T17:47:22Z","content":"secreto-del-prompt"}
+{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-21T17:47:22Z","model":"gemini-4-neon-xhigh","input_tokens":14166,"cache_read_tokens":0,"output_tokens":799,"thinking":"secreto-del-prompt"}
+{"step_index":8,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-21T17:49:15Z","model":"gemini-4-neon-xhigh","input_tokens":26040,"cache_read_tokens":14167,"output_tokens":509}
+{"step_index":8,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-21T17:49:15Z","model":"gemini-4-neon-xhigh","input_tokens":26040,"cache_read_tokens":14167,"output_tokens":509}
+{"step_index":9,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-21T17:50:02Z","model":"gemini-4-hydrogen-high","input_tokens":100,"cache_read_tokens":150,"output_tokens":20}
