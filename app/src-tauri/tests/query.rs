@@ -13,7 +13,7 @@ use gestor_core::cost::CostKind;
 use gestor_core::db::open_memory;
 use gestor_core::ingest::scan_all;
 use gestor_core::model::{Provider, Tool};
-use gestor_core::query::{Filter, costs, dashboard, session_detail, sessions};
+use gestor_core::query::{Filter, costs, dashboard, dashboard_profiled, session_detail, sessions};
 use gestor_core::time::{fmt_utc, local_date};
 use rusqlite::{Connection, params_from_iter};
 
@@ -634,9 +634,29 @@ fn panel_rapido() {
         project: None,
     };
 
+    let hourly_rows: i64 = conn
+        .query_row("SELECT COUNT(*) FROM hourly_agg", [], |r| r.get(0))
+        .unwrap();
+    let session_hour_rows: i64 = conn
+        .query_row("SELECT COUNT(*) FROM session_hour", [], |r| r.get(0))
+        .unwrap();
+
     let t0 = Instant::now();
     let d = dashboard(&conn, &f, &tz).unwrap();
     let elapsed = t0.elapsed();
+
+    let (_, prof) = dashboard_profiled(&conn, &f, &tz).unwrap();
+    println!("panel_rapido rows: hourly_agg={hourly_rows}, session_hour={session_hour_rows}");
+    println!(
+        "panel_rapido profile: total={:.2} ms | hourly_agg={:.2} ms | prev_totals={:.2} ms | session_sql={:.2} ms | session_calc={:.2} ms | prev_active={:.2} ms | aggregate={:.2} ms",
+        prof.total_ms,
+        prof.hourly_agg_ms,
+        prof.prev_totals_ms,
+        prof.session_sql_ms,
+        prof.session_calc_ms,
+        prof.prev_active_ms,
+        prof.aggregate_ms,
+    );
     println!("panel_rapido dashboard: {} ms", elapsed.as_millis());
 
     assert!((d.kpis.turns.value - 1_000_000.0).abs() < 1e-9);

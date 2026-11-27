@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{BuildHasherDefault, Hasher};
+use std::time::Instant;
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Timelike, Utc};
 use rusqlite::types::Value;
@@ -295,7 +296,6 @@ struct AggRow {
     model: String,
     project: String,
     turns: u64,
-    tokens: Tokens,
     cost_real: f64,
     cost_equiv: f64,
     unpriced: u64,
@@ -315,118 +315,114 @@ struct SessionMetrics {
     max_concurrency: u64,
 }
 
+#[doc(hidden)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct DashboardProfile {
+    pub hourly_agg_ms: f64,
+    pub prev_totals_ms: f64,
+    pub session_sql_ms: f64,
+    pub session_calc_ms: f64,
+    pub prev_active_ms: f64,
+    pub aggregate_ms: f64,
+    pub total_ms: f64,
+}
+
 /// Calcula los datos agregados de la pantalla Panel para el rango y filtros indicados.
 pub fn dashboard<Tz: TimeZone>(conn: &Connection, f: &Filter, tz: &Tz) -> Result<Dashboard> {
+    dashboard_inner(conn, f, tz, None)
+}
+
+#[doc(hidden)]
+pub fn dashboard_profiled<Tz: TimeZone>(
+    conn: &Connection,
+    f: &Filter,
+    tz: &Tz,
+) -> Result<(Dashboard, DashboardProfile)> {
+    let mut prof = DashboardProfile::default();
+    let d = dashboard_inner(conn, f, tz, Some(&mut prof))?;
+    Ok((d, prof))
+}
+
+fn dashboard_inner<Tz: TimeZone>(
+    conn: &Connection,
+    f: &Filter,
+    tz: &Tz,
+    mut prof: Option<&mut DashboardProfile>,
+) -> Result<Dashboard> {
+    let t_total = Instant::now();
     if f.from >= f.to {
         return Ok(empty_dashboard());
     }
 
-    let rows = query_hourly_agg(conn, f)?;
     let prev_filter = previous_filter(f);
+
+    let t0 = Instant::now();
+    let hourly = query_dashboard_hourly(conn, f, tz)?;
+    if let Some(p) = prof.as_deref_mut() {
+        p.hourly_agg_ms = t0.elapsed().as_secs_f64() * 1000.0;
+    }
+
+    let t1 = Instant::now();
     let prev_totals = query_hourly_totals(conn, &prev_filter)?;
-    let session_metrics = query_session_metrics(conn, f, tz)?;
+    if let Some(p) = prof.as_deref_mut() {
+        p.prev_totals_ms = t1.elapsed().as_secs_f64() * 1000.0;
+    }
+
+    let session_metrics = query_session_metrics(conn, f, tz, prof.as_deref_mut())?;
+
+    let t3 = Instant::now();
     let prev_active_secs = query_total_active_secs(conn, &prev_filter)?;
+    if let Some(p) = prof.as_deref_mut() {
+        p.prev_active_ms = t3.elapsed().as_secs_f64() * 1000.0;
+    }
 
-    let days = build_day_axis(f, tz, &rows);
-    let day_index: HashMap<NaiveDate, usize> =
-        days.iter().enumerate().map(|(i, d)| (*d, i)).collect();
+    let t4 = Instant::now();
 
-    let mut day_input_total = vec![0_u64; days.len()];
-    let mut day_output = vec![0_u64; days.len()];
-    let mut day_turns = vec![0_u64; days.len()];
-    let mut day_active = vec![0_u64; days.len()];
-
+    let mut day_active = vec![0_u64; hourly.days.len()];
     for (d, secs) in &session_metrics.active_by_day {
-        if let Some(&idx) = day_index.get(d) {
+        if let Some(&idx) = hourly.day_index.get(d) {
             day_active[idx] += *secs;
         }
     }
 
-    let mut heatmap = vec![vec![0_u64; 24]; 7];
-    let mut total_tokens_acc = Tokens::default();
-    let mut total_turns = 0_u64;
-
-    struct ModelAcc {
-        provider: Provider,
-        tokens: Tokens,
-        turns: u64,
-        cost_sum: f64,
-        unpriced: u64,
-    }
-    let mut models: HashMap<(String, Provider), ModelAcc> = HashMap::new();
-    let mut providers: HashMap<Provider, u64> = HashMap::new();
-    let mut tools: HashMap<Tool, Tokens> = HashMap::new();
-
-    for row in &rows {
-        let local_dt = row.hour_utc.with_timezone(tz);
-        let ld = local_dt.date_naive();
-        if let Some(&idx) = day_index.get(&ld) {
-            day_input_total[idx] += row.tokens.input_total();
-            day_output[idx] += row.tokens.output;
-            day_turns[idx] += row.turns;
-        }
-
-        let wd = local_dt.weekday().num_days_from_monday() as usize;
-        let hr = local_dt.hour() as usize;
-        heatmap[wd][hr] += row.tokens.total();
-
-        total_tokens_acc.add_assign(row.tokens);
-        total_turns += row.turns;
-
-        let m = models
-            .entry((row.model.clone(), row.provider))
-            .or_insert(ModelAcc {
-                provider: row.provider,
-                tokens: Tokens::default(),
-                turns: 0,
-                cost_sum: 0.0,
-                unpriced: 0,
-            });
-        m.tokens.add_assign(row.tokens);
-        m.turns += row.turns;
-        m.cost_sum += row.cost_real + row.cost_equiv;
-        m.unpriced += row.unpriced;
-
-        *providers.entry(row.provider).or_insert(0) += row.tokens.total();
-        tools.entry(row.tool).or_default().add_assign(row.tokens);
-    }
-
-    let input_total_val = total_tokens_acc.input_total();
+    let input_total_val = hourly.total_tokens.input_total();
     let cache_pct = if input_total_val > 0 {
-        total_tokens_acc.cache_read as f64 / input_total_val as f64 * 100.0
+        hourly.total_tokens.cache_read as f64 / input_total_val as f64 * 100.0
     } else {
         0.0
     };
-    let output_per_turn = if total_turns > 0 {
-        total_tokens_acc.output as f64 / total_turns as f64
+    let output_per_turn = if hourly.total_turns > 0 {
+        hourly.total_tokens.output as f64 / hourly.total_turns as f64
     } else {
         0.0
     };
 
-    let by_day: Vec<DayTokens> = days
+    let by_day: Vec<DayTokens> = hourly
+        .days
         .iter()
         .enumerate()
         .map(|(i, d)| DayTokens {
             date: d.format("%Y-%m-%d").to_string(),
-            input_total: day_input_total[i],
-            output: day_output[i],
+            input_total: hourly.day_input_total[i],
+            output: hourly.day_output[i],
         })
         .collect();
-    let days_with_use = day_turns.iter().filter(|&&t| t > 0).count() as u64;
+    let days_with_use = hourly.day_turns.iter().filter(|&&t| t > 0).count() as u64;
 
-    let peak = find_heatmap_peak(&heatmap);
+    let peak = find_heatmap_peak(&hourly.heatmap);
 
-    let mut by_model: Vec<ModelUsage> = models
+    let mut by_model: Vec<ModelUsage> = hourly
+        .models
         .into_iter()
-        .map(|((model, _), acc)| ModelUsage {
-            model,
-            provider: acc.provider,
-            tokens: acc.tokens,
-            turns: acc.turns,
-            cost_usd: if acc.unpriced == acc.turns {
+        .map(|m| ModelUsage {
+            model: m.model,
+            provider: m.provider,
+            tokens: m.tokens,
+            turns: m.turns,
+            cost_usd: if m.unpriced == m.turns {
                 None
             } else {
-                Some(acc.cost_sum)
+                Some(m.cost_sum)
             },
         })
         .collect();
@@ -437,15 +433,28 @@ pub fn dashboard<Tz: TimeZone>(conn: &Connection, f: &Filter, tz: &Tz) -> Result
             .then_with(|| a.model.cmp(&b.model))
     });
 
-    let grand_total = total_tokens_acc.total();
+    let grand_total = hourly.total_tokens.total();
     let mut by_provider: Vec<ProviderShare> = if grand_total > 0 {
-        providers
-            .into_iter()
-            .map(|(provider, t)| ProviderShare {
-                provider,
-                pct: t as f64 / grand_total as f64 * 100.0,
-            })
-            .collect()
+        [
+            Provider::Anthropic,
+            Provider::Google,
+            Provider::DeepSeek,
+            Provider::Other,
+        ]
+        .into_iter()
+        .enumerate()
+        .filter_map(|(idx, provider)| {
+            let t = hourly.provider_totals[idx];
+            if t > 0 {
+                Some(ProviderShare {
+                    provider,
+                    pct: t as f64 / grand_total as f64 * 100.0,
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
     } else {
         Vec::new()
     };
@@ -455,12 +464,19 @@ pub fn dashboard<Tz: TimeZone>(conn: &Connection, f: &Filter, tz: &Tz) -> Result
             .then_with(|| a.provider.as_str().cmp(b.provider.as_str()))
     });
 
-    let mut by_tool: Vec<ToolUsage> = tools
+    let mut by_tool: Vec<ToolUsage> = [Tool::ClaudeCode, Tool::Antigravity, Tool::Opencode]
         .into_iter()
-        .map(|(tool, tokens)| ToolUsage {
-            tool,
-            tokens,
-            active_secs: *session_metrics.active_by_tool.get(&tool).unwrap_or(&0),
+        .enumerate()
+        .filter_map(|(idx, tool)| {
+            if hourly.tool_seen[idx] {
+                Some(ToolUsage {
+                    tool,
+                    tokens: hourly.tool_tokens[idx],
+                    active_secs: *session_metrics.active_by_tool.get(&tool).unwrap_or(&0),
+                })
+            } else {
+                None
+            }
         })
         .collect();
     by_tool.sort_by(|a, b| {
@@ -470,24 +486,33 @@ pub fn dashboard<Tz: TimeZone>(conn: &Connection, f: &Filter, tz: &Tz) -> Result
             .then_with(|| a.tool.as_str().cmp(b.tool.as_str()))
     });
 
+    if let Some(p) = prof {
+        p.aggregate_ms = t4.elapsed().as_secs_f64() * 1000.0;
+        p.total_ms = t_total.elapsed().as_secs_f64() * 1000.0;
+    }
+
     Ok(Dashboard {
         kpis: DashboardKpis {
             input_total: Kpi {
                 value: input_total_val as f64,
                 delta_pct: delta_pct(input_total_val as f64, prev_totals.input_total as f64),
-                spark: day_input_total.into_iter().map(|v| v as f64).collect(),
+                spark: hourly
+                    .day_input_total
+                    .into_iter()
+                    .map(|v| v as f64)
+                    .collect(),
             },
             cache_pct,
             output: Kpi {
-                value: total_tokens_acc.output as f64,
-                delta_pct: delta_pct(total_tokens_acc.output as f64, prev_totals.output as f64),
-                spark: day_output.into_iter().map(|v| v as f64).collect(),
+                value: hourly.total_tokens.output as f64,
+                delta_pct: delta_pct(hourly.total_tokens.output as f64, prev_totals.output as f64),
+                spark: hourly.day_output.into_iter().map(|v| v as f64).collect(),
             },
             output_per_turn,
             turns: Kpi {
-                value: total_turns as f64,
-                delta_pct: delta_pct(total_turns as f64, prev_totals.turns as f64),
-                spark: day_turns.into_iter().map(|v| v as f64).collect(),
+                value: hourly.total_turns as f64,
+                delta_pct: delta_pct(hourly.total_turns as f64, prev_totals.turns as f64),
+                spark: hourly.day_turns.into_iter().map(|v| v as f64).collect(),
             },
             sessions: session_metrics.sessions,
             active_secs: Kpi {
@@ -502,7 +527,7 @@ pub fn dashboard<Tz: TimeZone>(conn: &Connection, f: &Filter, tz: &Tz) -> Result
         },
         by_day,
         days_with_use,
-        heatmap,
+        heatmap: hourly.heatmap,
         peak,
         by_model,
         by_provider,
@@ -984,33 +1009,6 @@ fn delta_pct(current: f64, previous: f64) -> Option<f64> {
     }
 }
 
-fn build_day_axis<Tz: TimeZone>(f: &Filter, tz: &Tz, rows: &[AggRow]) -> Vec<NaiveDate> {
-    let last_instant = f.to - Duration::nanoseconds(1);
-    let end_date = local_date(last_instant, tz);
-    let mut start_date = local_date(f.from, tz);
-
-    if (end_date - start_date).num_days() > 366 {
-        if let Some(min_date) = rows.iter().map(|r| local_date(r.hour_utc, tz)).min() {
-            if min_date > start_date {
-                start_date = min_date;
-            }
-        } else {
-            return Vec::new();
-        }
-    }
-
-    let mut days = Vec::new();
-    let mut d = start_date;
-    while d <= end_date {
-        days.push(d);
-        let Some(next) = d.succ_opt() else {
-            break;
-        };
-        d = next;
-    }
-    days
-}
-
 fn find_heatmap_peak(heatmap: &[Vec<u64>]) -> Option<HeatmapPeak> {
     let mut best: Option<(u64, HeatmapPeak)> = None;
     for (wd, hours) in heatmap.iter().enumerate() {
@@ -1073,16 +1071,342 @@ fn push_dimension_filters(
     }
 }
 
+struct DashboardModelAcc {
+    model: String,
+    provider: Provider,
+    tokens: Tokens,
+    turns: u64,
+    cost_sum: f64,
+    unpriced: u64,
+}
+
+struct DashboardHourly {
+    days: Vec<NaiveDate>,
+    day_index: HashMap<NaiveDate, usize>,
+    day_input_total: Vec<u64>,
+    day_output: Vec<u64>,
+    day_turns: Vec<u64>,
+    heatmap: Vec<Vec<u64>>,
+    total_tokens: Tokens,
+    total_turns: u64,
+    models: Vec<DashboardModelAcc>,
+    provider_totals: [u64; 4],
+    tool_tokens: [Tokens; 3],
+    tool_seen: [bool; 3],
+}
+
+fn build_day_axis_range<Tz: TimeZone>(
+    conn: &Connection,
+    f: &Filter,
+    tz: &Tz,
+    where_sql: &str,
+    params: &[Value],
+) -> Result<Vec<NaiveDate>> {
+    let last_instant = f.to - Duration::nanoseconds(1);
+    let end_date = local_date(last_instant, tz);
+    let mut start_date = local_date(f.from, tz);
+
+    if (end_date - start_date).num_days() > 366 {
+        let min_sql = if where_sql.is_empty() {
+            "SELECT MIN(hour_utc) FROM hourly_agg".to_string()
+        } else {
+            format!("SELECT MIN(hour_utc) FROM hourly_agg WHERE {where_sql}")
+        };
+        let mut min_stmt = conn.prepare_cached(&min_sql)?;
+        let min_hour: Option<String> =
+            min_stmt.query_row(params_from_iter(params.iter().cloned()), |r| r.get(0))?;
+        let Some(min_str) = min_hour else {
+            return Ok(Vec::new());
+        };
+        let min_dt = parse_utc(&min_str, "hourly_agg")?;
+        let min_date = local_date(min_dt, tz);
+        if min_date > start_date {
+            start_date = min_date;
+        }
+    }
+
+    let mut days = Vec::new();
+    let mut d = start_date;
+    while d <= end_date {
+        days.push(d);
+        let Some(next) = d.succ_opt() else {
+            break;
+        };
+        d = next;
+    }
+    Ok(days)
+}
+
+fn build_dimension_where(f: &Filter) -> (String, Vec<Value>) {
+    let mut clauses = Vec::new();
+    let mut params = Vec::new();
+    push_dimension_filters(f, &mut clauses, &mut params, true);
+    (clauses.join(" AND "), params)
+}
+
+fn table_covers_full_range(
+    conn: &Connection,
+    table: &str,
+    from_str: &str,
+    to_str: &str,
+) -> Result<(bool, bool)> {
+    let (min_sql, max_sql) = match table {
+        "hourly_agg" => (
+            "SELECT MIN(hour_utc) FROM hourly_agg",
+            "SELECT MAX(hour_utc) FROM hourly_agg",
+        ),
+        "session_hour" => (
+            "SELECT MIN(hour_utc) FROM session_hour",
+            "SELECT MAX(hour_utc) FROM session_hour",
+        ),
+        _ => unreachable!(),
+    };
+    let min_h: Option<String> = conn.prepare_cached(min_sql)?.query_row([], |r| r.get(0))?;
+    let Some(min_h) = min_h else {
+        return Ok((true, false));
+    };
+    if to_str <= min_h.as_str() {
+        return Ok((true, false));
+    }
+    let max_h: Option<String> = conn.prepare_cached(max_sql)?.query_row([], |r| r.get(0))?;
+    let Some(max_h) = max_h else {
+        return Ok((true, false));
+    };
+    let empty_range = from_str > max_h.as_str();
+    let full_range = from_str <= min_h.as_str() && max_h.as_str() < to_str;
+    Ok((empty_range, full_range))
+}
+
+fn query_dashboard_hourly<Tz: TimeZone>(
+    conn: &Connection,
+    f: &Filter,
+    tz: &Tz,
+) -> Result<DashboardHourly> {
+    let from_str = fmt_utc(f.from);
+    let to_str = fmt_utc(f.to);
+    let (empty_range, full_range) =
+        table_covers_full_range(conn, "hourly_agg", &from_str, &to_str)?;
+
+    let (where_sql, params) = if full_range {
+        build_dimension_where(f)
+    } else {
+        build_hourly_where(f)
+    };
+    let days = if empty_range {
+        build_day_axis_range(conn, f, tz, "1 = 0", &[])?
+    } else {
+        build_day_axis_range(conn, f, tz, &where_sql, &params)?
+    };
+    let day_index: HashMap<NaiveDate, usize> =
+        days.iter().enumerate().map(|(i, d)| (*d, i)).collect();
+
+    let mut day_input_total = vec![0_u64; days.len()];
+    let mut day_output = vec![0_u64; days.len()];
+    let mut day_turns = vec![0_u64; days.len()];
+    let mut heatmap = vec![vec![0_u64; 24]; 7];
+    let mut total_tokens = Tokens::default();
+    let mut total_turns = 0_u64;
+
+    let mut models: Vec<DashboardModelAcc> = Vec::new();
+    let mut model_map: FastMap<String, [Option<usize>; 4]> = FastMap::default();
+    let mut provider_totals = [0_u64; 4];
+    let mut tool_tokens = [Tokens::default(); 3];
+    let mut tool_seen = [false; 3];
+
+    if empty_range {
+        return Ok(DashboardHourly {
+            days,
+            day_index,
+            day_input_total,
+            day_output,
+            day_turns,
+            heatmap,
+            total_tokens,
+            total_turns,
+            models,
+            provider_totals,
+            tool_tokens,
+            tool_seen,
+        });
+    }
+
+    let sql = if where_sql.is_empty() {
+        "SELECT hour_utc, tool, provider, model,
+                turns, input, cache_write, cache_read, output,
+                cost_real, cost_equiv, unpriced
+         FROM hourly_agg"
+            .to_string()
+    } else {
+        format!(
+            "SELECT hour_utc, tool, provider, model,
+                    turns, input, cache_write, cache_read, output,
+                    cost_real, cost_equiv, unpriced
+             FROM hourly_agg
+             WHERE {where_sql}"
+        )
+    };
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let mut rows = stmt.query(params_from_iter(params))?;
+
+    let mut hour_cache: FastMap<[u8; 13], (Option<usize>, usize, usize)> = FastMap::default();
+    let mut last_hour: ([u8; 13], (Option<usize>, usize, usize)) = ([0; 13], (None, 0, 0));
+
+    while let Some(r) = rows.next()? {
+        let hour_bytes = col_bytes(r, 0)?;
+        let tool_bytes = col_bytes(r, 1)?;
+        let provider_bytes = col_bytes(r, 2)?;
+        let model_str = col_str(r, 3)?;
+
+        let turns = col_i64(r, 4)?.max(0) as u64;
+        let tokens = Tokens {
+            input: col_i64(r, 5)?.max(0) as u64,
+            cache_write: col_i64(r, 6)?.max(0) as u64,
+            cache_read: col_i64(r, 7)?.max(0) as u64,
+            output: col_i64(r, 8)?.max(0) as u64,
+        };
+        let cost_real = col_f64(r, 9)?;
+        let cost_equiv = col_f64(r, 10)?;
+        let unpriced = col_i64(r, 11)?.max(0) as u64;
+
+        let tool_idx = match tool_bytes {
+            b"claude-code" => 0,
+            b"antigravity" => 1,
+            b"opencode" => 2,
+            _ => return Err(col_str(r, 1)?.parse::<Tool>().unwrap_err()),
+        };
+        let (provider, provider_idx) = match provider_bytes {
+            b"anthropic" => (Provider::Anthropic, 0),
+            b"google" => (Provider::Google, 1),
+            b"deepseek" => (Provider::DeepSeek, 2),
+            b"other" => (Provider::Other, 3),
+            _ => return Err(col_str(r, 2)?.parse::<Provider>().unwrap_err()),
+        };
+
+        let (day_opt, wd, hr) = if hour_bytes.len() >= 13 {
+            let key: [u8; 13] = hour_bytes[..13].try_into().unwrap();
+            if key == last_hour.0 {
+                last_hour.1
+            } else if let Some(&cached) = hour_cache.get(&key) {
+                last_hour = (key, cached);
+                cached
+            } else {
+                let hour_ep = fast_epoch_secs(hour_bytes)?;
+                let hour_utc =
+                    DateTime::from_timestamp(hour_ep, 0).ok_or_else(|| CoreError::Parse {
+                        file: "hourly_agg".to_string(),
+                        line: 0,
+                        reason: format!("timestamp de hora inválido: {hour_ep}"),
+                    })?;
+                let local_dt = hour_utc.with_timezone(tz);
+                let val = (
+                    day_index.get(&local_dt.date_naive()).copied(),
+                    local_dt.weekday().num_days_from_monday() as usize,
+                    local_dt.hour() as usize,
+                );
+                hour_cache.insert(key, val);
+                last_hour = (key, val);
+                val
+            }
+        } else {
+            let hour_utc = parse_utc(col_str(r, 0)?, "hourly_agg")?;
+            let local_dt = hour_utc.with_timezone(tz);
+            (
+                day_index.get(&local_dt.date_naive()).copied(),
+                local_dt.weekday().num_days_from_monday() as usize,
+                local_dt.hour() as usize,
+            )
+        };
+
+        let input_total = tokens.input_total();
+        let total = input_total + tokens.output;
+
+        if let Some(idx) = day_opt {
+            day_input_total[idx] += input_total;
+            day_output[idx] += tokens.output;
+            day_turns[idx] += turns;
+        }
+
+        heatmap[wd][hr] += total;
+        total_tokens.add_assign(tokens);
+        total_turns += turns;
+        provider_totals[provider_idx] += total;
+        tool_seen[tool_idx] = true;
+        tool_tokens[tool_idx].add_assign(tokens);
+
+        if models.len() <= 16 {
+            if let Some(acc) = models
+                .iter_mut()
+                .find(|m| m.provider == provider && m.model == model_str)
+            {
+                acc.tokens.add_assign(tokens);
+                acc.turns += turns;
+                acc.cost_sum += cost_real + cost_equiv;
+                acc.unpriced += unpriced;
+            } else {
+                let m_idx = models.len();
+                model_map.entry(model_str.to_owned()).or_insert([None; 4])[provider_idx] =
+                    Some(m_idx);
+                models.push(DashboardModelAcc {
+                    model: model_str.to_owned(),
+                    provider,
+                    tokens,
+                    turns,
+                    cost_sum: cost_real + cost_equiv,
+                    unpriced,
+                });
+            }
+        } else {
+            let slot = if let Some(slots) = model_map.get_mut(model_str) {
+                slots
+            } else {
+                model_map.entry(model_str.to_owned()).or_insert([None; 4])
+            };
+            if let Some(m_idx) = slot[provider_idx] {
+                let acc = &mut models[m_idx];
+                acc.tokens.add_assign(tokens);
+                acc.turns += turns;
+                acc.cost_sum += cost_real + cost_equiv;
+                acc.unpriced += unpriced;
+            } else {
+                let m_idx = models.len();
+                slot[provider_idx] = Some(m_idx);
+                models.push(DashboardModelAcc {
+                    model: model_str.to_owned(),
+                    provider,
+                    tokens,
+                    turns,
+                    cost_sum: cost_real + cost_equiv,
+                    unpriced,
+                });
+            }
+        }
+    }
+
+    Ok(DashboardHourly {
+        days,
+        day_index,
+        day_input_total,
+        day_output,
+        day_turns,
+        heatmap,
+        total_tokens,
+        total_turns,
+        models,
+        provider_totals,
+        tool_tokens,
+        tool_seen,
+    })
+}
+
 fn query_hourly_agg(conn: &Connection, f: &Filter) -> Result<Vec<AggRow>> {
     let (where_sql, params) = build_hourly_where(f);
     let sql = format!(
         "SELECT hour_utc, tool, provider, plan_id, model, project,
-                turns, input, cache_write, cache_read, output,
-                cost_real, cost_equiv, unpriced
+                turns, cost_real, cost_equiv, unpriced
          FROM hourly_agg
          WHERE {where_sql}"
     );
-    let mut stmt = conn.prepare(&sql)?;
+    let mut stmt = conn.prepare_cached(&sql)?;
     let mut rows = stmt.query(params_from_iter(params))?;
     let mut out = Vec::new();
     while let Some(r) = rows.next()? {
@@ -1097,15 +1421,9 @@ fn query_hourly_agg(conn: &Connection, f: &Filter) -> Result<Vec<AggRow>> {
             model: r.get(4)?,
             project: r.get(5)?,
             turns: r.get::<_, i64>(6)?.max(0) as u64,
-            tokens: Tokens {
-                input: r.get::<_, i64>(7)?.max(0) as u64,
-                cache_write: r.get::<_, i64>(8)?.max(0) as u64,
-                cache_read: r.get::<_, i64>(9)?.max(0) as u64,
-                output: r.get::<_, i64>(10)?.max(0) as u64,
-            },
-            cost_real: r.get(11)?,
-            cost_equiv: r.get(12)?,
-            unpriced: r.get::<_, i64>(13)?.max(0) as u64,
+            cost_real: r.get(7)?,
+            cost_equiv: r.get(8)?,
+            unpriced: r.get::<_, i64>(9)?.max(0) as u64,
         });
     }
     Ok(out)
@@ -1127,8 +1445,9 @@ fn query_hourly_totals(conn: &Connection, f: &Filter) -> Result<PeriodTotals> {
          FROM hourly_agg
          WHERE {where_sql}"
     );
-    let (input_total, output, turns): (i64, i64, i64) =
-        conn.query_row(&sql, params_from_iter(params), |r| {
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let (input_total, output, turns): (i64, i64, i64) = stmt
+        .query_row(params_from_iter(params), |r| {
             Ok((r.get(0)?, r.get(1)?, r.get(2)?))
         })?;
     Ok(PeriodTotals {
@@ -1138,53 +1457,193 @@ fn query_hourly_totals(conn: &Connection, f: &Filter) -> Result<PeriodTotals> {
     })
 }
 
+#[derive(Clone, Copy)]
+struct InternSlot {
+    hash: u64,
+    offset: u32,
+    len: u32,
+    idx: u32,
+}
+
+struct SessionInterner {
+    arena: Vec<u8>,
+    slots: Vec<InternSlot>,
+    count: usize,
+}
+
+impl SessionInterner {
+    fn new() -> Self {
+        Self {
+            arena: Vec::with_capacity(4096),
+            slots: vec![
+                InternSlot {
+                    hash: 0,
+                    offset: 0,
+                    len: 0,
+                    idx: u32::MAX,
+                };
+                64
+            ],
+            count: 0,
+        }
+    }
+
+    #[inline]
+    fn hash_bytes(bytes: &[u8]) -> u64 {
+        let mut h = 0xcbf2_9ce4_8422_2325_u64;
+        for &b in bytes {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+        h ^= h >> 33;
+        h.wrapping_mul(0xff51_afd7_ed55_8ccd)
+    }
+
+    fn grow(&mut self) {
+        let new_cap = self.slots.len() * 2;
+        let mask = new_cap - 1;
+        let mut new_slots = vec![
+            InternSlot {
+                hash: 0,
+                offset: 0,
+                len: 0,
+                idx: u32::MAX,
+            };
+            new_cap
+        ];
+        for &slot in &self.slots {
+            if slot.idx == u32::MAX {
+                continue;
+            }
+            let mut pos = (slot.hash as usize) & mask;
+            while new_slots[pos].idx != u32::MAX {
+                pos = (pos + 1) & mask;
+            }
+            new_slots[pos] = slot;
+        }
+        self.slots = new_slots;
+    }
+
+    #[inline]
+    fn intern(&mut self, bytes: &[u8]) -> (usize, bool) {
+        if (self.count + 1) * 10 >= self.slots.len() * 7 {
+            self.grow();
+        }
+        let hash = Self::hash_bytes(bytes);
+        let mask = self.slots.len() - 1;
+        let mut pos = (hash as usize) & mask;
+        loop {
+            let slot = self.slots[pos];
+            if slot.idx == u32::MAX {
+                let idx = self.count;
+                let offset = self.arena.len() as u32;
+                let len = bytes.len() as u32;
+                self.arena.extend_from_slice(bytes);
+                self.slots[pos] = InternSlot {
+                    hash,
+                    offset,
+                    len,
+                    idx: idx as u32,
+                };
+                self.count += 1;
+                return (idx, true);
+            }
+            if slot.hash == hash && slot.len as usize == bytes.len() {
+                let start = slot.offset as usize;
+                let end = start + slot.len as usize;
+                if &self.arena[start..end] == bytes {
+                    return (slot.idx as usize, false);
+                }
+            }
+            pos = (pos + 1) & mask;
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct SessionHourEntry {
+    hour_ep: i64,
+    tool_idx: u8,
+    first_ep: i64,
+    last_ep: i64,
+    active_secs: u64,
+    minute_mask: u64,
+}
+
+struct SessionNode {
+    next: u32,
+    row: SessionHourEntry,
+}
+
 fn query_session_metrics<Tz: TimeZone>(
     conn: &Connection,
     f: &Filter,
     tz: &Tz,
+    prof: Option<&mut DashboardProfile>,
 ) -> Result<SessionMetrics> {
-    struct SessionHourRow {
-        hour_ep: i64,
-        tool_idx: usize,
-        first_ep: i64,
-        last_ep: i64,
-        active_secs: u64,
-        minute_mask: u64,
+    let t_sql = Instant::now();
+    let from_str = fmt_utc(f.from);
+    let to_str = fmt_utc(f.to);
+    let (empty_range, full_range) =
+        table_covers_full_range(conn, "session_hour", &from_str, &to_str)?;
+    if empty_range {
+        if let Some(p) = prof {
+            p.session_sql_ms = t_sql.elapsed().as_secs_f64() * 1000.0;
+        }
+        return Ok(SessionMetrics {
+            sessions: 0,
+            total_active_secs: 0,
+            active_by_day: HashMap::new(),
+            active_by_tool: HashMap::new(),
+            max_concurrency: 0,
+        });
     }
 
-    let (where_sql, params) = build_hourly_where(f);
-    let sql = format!(
+    let (where_sql, params) = if full_range {
+        build_dimension_where(f)
+    } else {
+        build_hourly_where(f)
+    };
+    let sql = if where_sql.is_empty() {
         "SELECT session_id, tool, hour_utc, first_ts, last_ts, active_secs, minute_mask
-         FROM session_hour
-         WHERE {where_sql}"
-    );
+         FROM session_hour"
+            .to_string()
+    } else {
+        format!(
+            "SELECT session_id, tool, hour_utc, first_ts, last_ts, active_secs, minute_mask
+             FROM session_hour
+             WHERE {where_sql}"
+        )
+    };
 
-    let mut stmt = conn.prepare(&sql)?;
+    let mut stmt = conn.prepare_cached(&sql)?;
     let mut rows = stmt.query(params_from_iter(params))?;
 
-    let mut session_indices: FastMap<String, usize> = FastMap::default();
-    let mut per_session: Vec<Vec<SessionHourRow>> = Vec::new();
+    let mut interner = SessionInterner::new();
+    let mut heads: Vec<u32> = Vec::new();
+    let mut nodes: Vec<SessionNode> = Vec::new();
+    let mut cached_hour: ([u8; 13], i64) = ([0; 13], 0);
 
     while let Some(r) = rows.next()? {
-        let session_str = col_str(r, 0)?;
-        let tool_str = col_str(r, 1)?;
-        let hour_bytes = col_str(r, 2)?.as_bytes();
-        let first_bytes = col_str(r, 3)?.as_bytes();
-        let last_bytes = col_str(r, 4)?.as_bytes();
-        let active_secs = r.get::<_, i64>(5)?.max(0) as u64;
-        let minute_mask = (r.get::<_, i64>(6)?.max(0) as u64) & ((1_u64 << 60) - 1);
+        let session_bytes = col_bytes(r, 0)?;
+        let tool_bytes = col_bytes(r, 1)?;
+        let hour_bytes = col_bytes(r, 2)?;
+        let first_bytes = col_bytes(r, 3)?;
+        let last_bytes = col_bytes(r, 4)?;
+        let active_secs = col_i64(r, 5)?.max(0) as u64;
+        let minute_mask = (col_i64(r, 6)?.max(0) as u64) & ((1_u64 << 60) - 1);
 
-        let tool_idx = match tool_str {
-            "claude-code" => 0,
-            "antigravity" => 1,
-            "opencode" => 2,
-            other => return Err(other.parse::<Tool>().unwrap_err()),
+        let tool_idx = match tool_bytes {
+            b"claude-code" => 0_u8,
+            b"antigravity" => 1_u8,
+            b"opencode" => 2_u8,
+            _ => return Err(col_str(r, 1)?.parse::<Tool>().unwrap_err()),
         };
-        let hour_ep = fast_epoch_secs(hour_bytes)?;
-        let first_ep = fast_epoch_secs(first_bytes)?;
-        let last_ep = fast_epoch_secs(last_bytes)?;
 
-        let entry = SessionHourRow {
+        let (hour_ep, first_ep, last_ep) =
+            parse_session_hour_times(hour_bytes, first_bytes, last_bytes, &mut cached_hour)?;
+
+        let entry = SessionHourEntry {
             hour_ep,
             tool_idx,
             first_ep,
@@ -1192,75 +1651,98 @@ fn query_session_metrics<Tz: TimeZone>(
             active_secs,
             minute_mask,
         };
-        if let Some(&idx) = session_indices.get(session_str) {
-            per_session[idx].push(entry);
+
+        let node_idx = nodes.len() as u32;
+        let (s_idx, is_new) = interner.intern(session_bytes);
+        if is_new {
+            heads.push(node_idx);
+            nodes.push(SessionNode {
+                next: u32::MAX,
+                row: entry,
+            });
         } else {
-            let idx = per_session.len();
-            session_indices.insert(session_str.to_owned(), idx);
-            per_session.push(vec![entry]);
+            nodes.push(SessionNode {
+                next: heads[s_idx],
+                row: entry,
+            });
+            heads[s_idx] = node_idx;
         }
     }
+    let sql_ms = t_sql.elapsed().as_secs_f64() * 1000.0;
+    let t_calc = Instant::now();
 
-    let sessions = per_session.len() as u64;
+    let sessions = heads.len() as u64;
     let mut total_active_secs = 0_u64;
     let mut active_by_tool_arr = [0_u64; 3];
     let mut active_by_hour: FastMap<i64, u64> = FastMap::default();
     let mut hour_minute_counts: FastMap<i64, [u32; 60]> = FastMap::default();
+    let mut scratch: Vec<SessionHourEntry> = Vec::with_capacity(16);
 
-    for mut entries in per_session {
-        if entries.len() > 1 {
-            entries.sort_unstable_by_key(|e| (e.first_ep, e.last_ep));
+    for head in heads {
+        scratch.clear();
+        let mut cur = head;
+        while cur != u32::MAX {
+            let n = &nodes[cur as usize];
+            scratch.push(n.row);
+            cur = n.next;
         }
 
-        let first = &entries[0];
-        total_active_secs += first.active_secs;
-        active_by_tool_arr[first.tool_idx] += first.active_secs;
-        if first.active_secs > 0 {
-            *active_by_hour.entry(first.hour_ep).or_insert(0) += first.active_secs;
-        }
-
-        for i in 1..entries.len() {
-            let prev = &entries[i - 1];
-            let curr = &entries[i];
-            let inter_gap = (curr.first_ep - prev.last_ep).clamp(0, 300) as u64;
-            let added = curr.active_secs + inter_gap;
-            total_active_secs += added;
-            active_by_tool_arr[curr.tool_idx] += added;
-            if added > 0 {
-                *active_by_hour.entry(curr.hour_ep).or_insert(0) += added;
+        if scratch.len() == 1 {
+            let e = &scratch[0];
+            total_active_secs += e.active_secs;
+            active_by_tool_arr[e.tool_idx as usize] += e.active_secs;
+            if e.active_secs > 0 {
+                *active_by_hour.entry(e.hour_ep).or_insert(0) += e.active_secs;
             }
-        }
-
-        if entries.len() == 1 {
-            let mut mask = entries[0].minute_mask;
+            let mut mask = e.minute_mask;
             if mask != 0 {
-                let counts = hour_minute_counts
-                    .entry(entries[0].hour_ep)
-                    .or_insert([0_u32; 60]);
+                let counts = hour_minute_counts.entry(e.hour_ep).or_insert([0_u32; 60]);
                 while mask != 0 {
                     let bit = mask.trailing_zeros() as usize;
                     counts[bit] += 1;
                     mask &= mask - 1;
                 }
             }
-        } else {
-            entries.sort_unstable_by_key(|e| e.hour_ep);
-            let mut i = 0;
-            while i < entries.len() {
-                let hour_ep = entries[i].hour_ep;
-                let mut mask = entries[i].minute_mask;
+            continue;
+        }
+
+        scratch.sort_unstable_by_key(|e| (e.first_ep, e.last_ep));
+
+        let first = &scratch[0];
+        total_active_secs += first.active_secs;
+        active_by_tool_arr[first.tool_idx as usize] += first.active_secs;
+        if first.active_secs > 0 {
+            *active_by_hour.entry(first.hour_ep).or_insert(0) += first.active_secs;
+        }
+
+        for i in 1..scratch.len() {
+            let prev = &scratch[i - 1];
+            let curr = &scratch[i];
+            let inter_gap = (curr.first_ep - prev.last_ep).clamp(0, 300) as u64;
+            let added = curr.active_secs + inter_gap;
+            total_active_secs += added;
+            active_by_tool_arr[curr.tool_idx as usize] += added;
+            if added > 0 {
+                *active_by_hour.entry(curr.hour_ep).or_insert(0) += added;
+            }
+        }
+
+        scratch.sort_unstable_by_key(|e| e.hour_ep);
+        let mut i = 0;
+        while i < scratch.len() {
+            let hour_ep = scratch[i].hour_ep;
+            let mut mask = scratch[i].minute_mask;
+            i += 1;
+            while i < scratch.len() && scratch[i].hour_ep == hour_ep {
+                mask |= scratch[i].minute_mask;
                 i += 1;
-                while i < entries.len() && entries[i].hour_ep == hour_ep {
-                    mask |= entries[i].minute_mask;
-                    i += 1;
-                }
-                if mask != 0 {
-                    let counts = hour_minute_counts.entry(hour_ep).or_insert([0_u32; 60]);
-                    while mask != 0 {
-                        let bit = mask.trailing_zeros() as usize;
-                        counts[bit] += 1;
-                        mask &= mask - 1;
-                    }
+            }
+            if mask != 0 {
+                let counts = hour_minute_counts.entry(hour_ep).or_insert([0_u32; 60]);
+                while mask != 0 {
+                    let bit = mask.trailing_zeros() as usize;
+                    counts[bit] += 1;
+                    mask &= mask - 1;
                 }
             }
         }
@@ -1294,6 +1776,11 @@ fn query_session_metrics<Tz: TimeZone>(
         }
     }
 
+    if let Some(p) = prof {
+        p.session_sql_ms = sql_ms;
+        p.session_calc_ms = t_calc.elapsed().as_secs_f64() * 1000.0;
+    }
+
     Ok(SessionMetrics {
         sessions,
         total_active_secs,
@@ -1307,51 +1794,176 @@ fn query_total_active_secs(conn: &Connection, f: &Filter) -> Result<u64> {
     if f.from >= f.to {
         return Ok(0);
     }
-    let (where_sql, params) = build_hourly_where(f);
-    let sql = format!(
-        "SELECT session_id, first_ts, last_ts, active_secs
-         FROM session_hour
-         WHERE {where_sql}"
-    );
-    let mut stmt = conn.prepare(&sql)?;
+    let from_str = fmt_utc(f.from);
+    let to_str = fmt_utc(f.to);
+    let (empty_range, full_range) =
+        table_covers_full_range(conn, "session_hour", &from_str, &to_str)?;
+    if empty_range {
+        return Ok(0);
+    }
+    let (where_sql, params) = if full_range {
+        build_dimension_where(f)
+    } else {
+        build_hourly_where(f)
+    };
+    let sql = if where_sql.is_empty() {
+        "SELECT session_id, hour_utc, first_ts, last_ts, active_secs
+         FROM session_hour"
+            .to_string()
+    } else {
+        format!(
+            "SELECT session_id, hour_utc, first_ts, last_ts, active_secs
+             FROM session_hour
+             WHERE {where_sql}"
+        )
+    };
+    let mut stmt = conn.prepare_cached(&sql)?;
     let mut rows = stmt.query(params_from_iter(params))?;
 
-    let mut session_indices: FastMap<String, usize> = FastMap::default();
-    let mut per_session: Vec<Vec<(i64, i64, u64)>> = Vec::new();
+    struct PrevNode {
+        next: u32,
+        first_ep: i64,
+        last_ep: i64,
+        active_secs: u64,
+    }
+    let mut interner = SessionInterner::new();
+    let mut heads: Vec<u32> = Vec::new();
+    let mut nodes: Vec<PrevNode> = Vec::new();
+    let mut cached_hour: ([u8; 13], i64) = ([0; 13], 0);
 
     while let Some(r) = rows.next()? {
-        let session_str = col_str(r, 0)?;
-        let first_ep = fast_epoch_secs(col_str(r, 1)?.as_bytes())?;
-        let last_ep = fast_epoch_secs(col_str(r, 2)?.as_bytes())?;
-        let active_secs = r.get::<_, i64>(3)?.max(0) as u64;
+        let session_bytes = col_bytes(r, 0)?;
+        let hour_bytes = col_bytes(r, 1)?;
+        let first_bytes = col_bytes(r, 2)?;
+        let last_bytes = col_bytes(r, 3)?;
+        let active_secs = col_i64(r, 4)?.max(0) as u64;
 
-        let entry = (first_ep, last_ep, active_secs);
-        if let Some(&idx) = session_indices.get(session_str) {
-            per_session[idx].push(entry);
+        let (_, first_ep, last_ep) =
+            parse_session_hour_times(hour_bytes, first_bytes, last_bytes, &mut cached_hour)?;
+
+        let node_idx = nodes.len() as u32;
+        let (s_idx, is_new) = interner.intern(session_bytes);
+        if is_new {
+            heads.push(node_idx);
+            nodes.push(PrevNode {
+                next: u32::MAX,
+                first_ep,
+                last_ep,
+                active_secs,
+            });
         } else {
-            let idx = per_session.len();
-            session_indices.insert(session_str.to_owned(), idx);
-            per_session.push(vec![entry]);
+            nodes.push(PrevNode {
+                next: heads[s_idx],
+                first_ep,
+                last_ep,
+                active_secs,
+            });
+            heads[s_idx] = node_idx;
         }
     }
 
     let mut total = 0_u64;
-    for mut entries in per_session {
-        if entries.len() > 1 {
-            entries.sort_unstable_by_key(|e| (e.0, e.1));
+    let mut scratch: Vec<(i64, i64, u64)> = Vec::with_capacity(16);
+    for head in heads {
+        scratch.clear();
+        let mut cur = head;
+        while cur != u32::MAX {
+            let n = &nodes[cur as usize];
+            scratch.push((n.first_ep, n.last_ep, n.active_secs));
+            cur = n.next;
         }
-        total += entries[0].2;
-        for i in 1..entries.len() {
-            total += entries[i].2 + (entries[i].0 - entries[i - 1].1).clamp(0, 300) as u64;
+        if scratch.len() > 1 {
+            scratch.sort_unstable_by_key(|e| (e.0, e.1));
+        }
+        total += scratch[0].2;
+        for i in 1..scratch.len() {
+            total += scratch[i].2 + (scratch[i].0 - scratch[i - 1].1).clamp(0, 300) as u64;
         }
     }
     Ok(total)
 }
 
 #[inline]
+fn parse_session_hour_times(
+    hour_bytes: &[u8],
+    first_bytes: &[u8],
+    last_bytes: &[u8],
+    cached_hour: &mut ([u8; 13], i64),
+) -> Result<(i64, i64, i64)> {
+    if hour_bytes.len() >= 13 {
+        let hkey: [u8; 13] = hour_bytes[..13].try_into().unwrap();
+        let hep = if hkey == cached_hour.0 {
+            cached_hour.1
+        } else {
+            let ep = fast_epoch_secs(hour_bytes)?;
+            *cached_hour = (hkey, ep);
+            ep
+        };
+        let fep = if first_bytes.len() >= 19 && first_bytes[..13] == hkey {
+            if let Some(off) = fast_min_sec(first_bytes) {
+                hep + off
+            } else {
+                fast_epoch_secs(first_bytes)?
+            }
+        } else {
+            fast_epoch_secs(first_bytes)?
+        };
+        let lep = if last_bytes.len() >= 19 && last_bytes[..13] == hkey {
+            if let Some(off) = fast_min_sec(last_bytes) {
+                hep + off
+            } else {
+                fast_epoch_secs(last_bytes)?
+            }
+        } else {
+            fast_epoch_secs(last_bytes)?
+        };
+        Ok((hep, fep, lep))
+    } else {
+        Ok((
+            fast_epoch_secs(hour_bytes)?,
+            fast_epoch_secs(first_bytes)?,
+            fast_epoch_secs(last_bytes)?,
+        ))
+    }
+}
+
+#[inline]
+fn fast_min_sec(b: &[u8]) -> Option<i64> {
+    if b[13] == b':'
+        && b[16] == b':'
+        && let (Some(mm), Some(ss)) = (parse_2(b, 14), parse_2(b, 17))
+    {
+        Some((mm as i64) * 60 + (ss as i64))
+    } else {
+        None
+    }
+}
+
+#[inline]
 fn col_str<'a>(row: &'a rusqlite::Row<'a>, idx: usize) -> Result<&'a str> {
     Ok(row.get_ref(idx)?.as_str().map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(idx, rusqlite::types::Type::Text, Box::new(e))
+    })?)
+}
+
+#[inline]
+fn col_bytes<'a>(row: &'a rusqlite::Row<'a>, idx: usize) -> Result<&'a [u8]> {
+    Ok(row.get_ref(idx)?.as_bytes().map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(idx, rusqlite::types::Type::Text, Box::new(e))
+    })?)
+}
+
+#[inline]
+fn col_i64(row: &rusqlite::Row<'_>, idx: usize) -> Result<i64> {
+    Ok(row.get_ref(idx)?.as_i64().map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(idx, rusqlite::types::Type::Integer, Box::new(e))
+    })?)
+}
+
+#[inline]
+fn col_f64(row: &rusqlite::Row<'_>, idx: usize) -> Result<f64> {
+    Ok(row.get_ref(idx)?.as_f64().map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(idx, rusqlite::types::Type::Real, Box::new(e))
     })?)
 }
 
